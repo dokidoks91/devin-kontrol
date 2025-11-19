@@ -800,21 +800,21 @@ def export_to_markdown(posts, cfg: dict):
         f.write("---\n\n")
 
         f.write(
-            "| PostGunu | PostSaati | Sira | KisaKod | Renk | UrunCinsi | IlkUrunToplamStok | UrunToplamStok |\n"
+            "| PostGunu | PostSaati | Sira | KisaKod | Renk | UrunCinsi | IlkUrunToplamStok | UrunToplamStok | kisakodrenk |\n"
         )
         f.write(
-            "|----------|-----------|------|---------|------|-----------|-------------------|----------------|\n"
+            "|----------|-----------|------|---------|------|-----------|-------------------|----------------|-------------|\n"
         )
 
         for post in posts:
             first = post["first_product"]
             first_stock = first["total_stock"]
             f.write(
-                f"| {post['day_name']} | {post['time']} | 1 | {first['KisaKod']} | {first['Renk']} | {first['UrunCinsi']} | {first_stock} | {first_stock} |\n"
+                f"| {post['day_name']} | {post['time']} | 1 | {first['KisaKod']} | {first['Renk']} | {first['UrunCinsi']} | {first_stock} | {first_stock} | {first['kisakodrenk']} |\n"
             )
             for i, bp in enumerate(post.get("back_products", []), start=2):
                 f.write(
-                    f"| {post['day_name']} | {post['time']} | {i} | {bp['KisaKod']} | {bp['Renk']} | {bp['UrunCinsi']} | {first_stock} | {bp['total_stock']} |\n"
+                    f"| {post['day_name']} | {post['time']} | {i} | {bp['KisaKod']} | {bp['Renk']} | {bp['UrunCinsi']} | {first_stock} | {bp['total_stock']} | {bp['kisakodrenk']} |\n"
                 )
 
     print(f"Markdown dosyası yazıldı: {output_path}")
