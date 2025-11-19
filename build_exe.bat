@@ -29,7 +29,12 @@ python -m PyInstaller --onefile --noconsole ^
     --name InstagramPostPlanner ^
     --hidden-import openpyxl ^
     --hidden-import openpyxl.cell._writer ^
-    gui_app.py
+    --add-data "config.py;." ^
+    --add-data "validator.py;." ^
+    --add-data "constraint_analyzer.py;." ^
+    --add-data "planner.py;." ^
+    --add-data "instagram_auto_post.py;." ^
+    gui_app_v2.py
 
 if errorlevel 1 (
     echo.

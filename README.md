@@ -4,11 +4,14 @@ A Windows desktop application for generating weekly Instagram post plans for Tur
 
 ## Features
 
-- **GUI Application**: Easy-to-use Windows interface built with Tkinter
+- **Comprehensive GUI Application**: Tabbed interface with 30+ configurable parameters
 - **Standalone .exe**: Run on any Windows machine without Python installed
 - **Smart Planning**: Applies complex filters for seasonal products, stock levels, NOS/DVM requirements
-- **Flexible Configuration**: Configurable start day, duration, and seasonal modes
+- **Fully Configurable**: ALL constraints configurable via GUI - no hard-coded values
+- **Constraint Validation**: Automatic validation with detailed Kriter_Ozet (Criteria Summary) sheet
+- **Smart Suggestions**: Constraint analyzer suggests relaxations when requirements can't be met
 - **Dual Output**: Generates both Excel (.xlsx) and Markdown (.md) files
+- **Best-Effort Mode**: Continue with partial plans when constraints can't be fully met
 
 ## Quick Start
 
@@ -21,12 +24,17 @@ A Windows desktop application for generating weekly Instagram post plans for Tur
    pip install -r requirements.txt
    ```
 
-3. **Run the GUI application:**
+3. **Run the comprehensive GUI application (recommended):**
+   ```bash
+   python gui_app_v2.py
+   ```
+
+4. **Or run the simple GUI:**
    ```bash
    python gui_app.py
    ```
 
-4. **Or run the CLI version:**
+5. **Or run the CLI version:**
    ```bash
    python instagram_auto_post.py
    ```
@@ -72,23 +80,54 @@ pyinstaller --onefile --noconsole --name InstagramPostPlanner --hidden-import op
 
 ## Usage
 
-### GUI Application
+### Comprehensive GUI Application (gui_app_v2.py)
 
-1. **Launch the application** (either `python gui_app.py` or `InstagramPostPlanner.exe`)
+The comprehensive GUI provides full control over all planning parameters through a tabbed interface:
 
-2. **Select stock file:** Click "Dosya Seç..." and choose your Excel file (stokdosya.xlsx)
+1. **Launch the application** (either `python gui_app_v2.py` or `InstagramPostPlanner.exe`)
 
-3. **Configure plan:**
-   - **Plan Başlangıç Günü**: Select starting day (Pazartesi, Salı, etc.)
-   - **Kaç Günlük Plan**: Enter number of days (1-7)
-   - **Front Ürün Modu**: Select seasonal mode for first products (Yazlık/Kışlık/Her ikisi)
-   - **Back Ürün Modu**: Select seasonal mode for back products (Yazlık/Kışlık/Her ikisi)
+2. **Plan Settings Tab:**
+   - Select stock Excel file
+   - Choose start day (Pazartesi → Pazar)
+   - Set number of days (1-7)
 
-4. **Generate plan:** Click "Planı Oluştur"
+3. **FIRST Criteria Tab:**
+   - Yazlık/Kışlık filters (checkboxes)
+   - Cekim filters (EVET/NA multi-select)
+   - One Atilma Tarihi settings (allow #N/A, date T, days X)
+   - Minimum total stock
+   - Size/stock rules (8 rows: for each size count, set min sizes with stock Y and min stock value Z)
+   - Minimum NOS FIRST count
+   - Minimum DVM FIRST count
 
-5. **View results:** The output area shows progress and summary. Output files are saved next to your Excel file:
-   - `instagram_haftalik_plan.xlsx`
+4. **BACK Criteria Tab:**
+   - Same configuration options as FIRST, but separate values
+
+5. **Advanced Rules Tab:**
+   - Max same UrunCinsi consecutive per day
+   - Min distinct UrunCinsi per day
+   - Max same color consecutive per day
+   - Min distinct color per day
+   - Same KisaKod minimum gap days (0-7)
+
+6. **Global Targets Tab:**
+   - Minimum total stock sum for all FIRST products
+   - Minimum total stock sum for ALL products (FIRST + BACK)
+
+7. **Generate plan:** Click "Planı Oluştur"
+
+8. **View results:** The output area shows progress, validation summary, and constraint analysis. Output files are saved next to your Excel file:
+   - `instagram_haftalik_plan.xlsx` (with Plan and Kriter_Ozet sheets)
    - `instagram_haftalik_plan.md`
+
+### Simple GUI Application (gui_app.py)
+
+For basic usage with default constraints:
+
+1. **Launch:** `python gui_app.py` or use the old .exe
+2. **Select stock file**
+3. **Configure:** Start day, number of days, seasonal modes
+4. **Generate plan**
 
 ### CLI Application
 
@@ -127,7 +166,9 @@ The application generates two output files in the same directory as your input E
 
 ### 1. instagram_haftalik_plan.xlsx
 
-Excel spreadsheet with columns:
+Excel workbook with TWO sheets:
+
+**Sheet 1: Plan**
 - **PostGunu**: Day of the week (in Turkish)
 - **PostSaati**: Post time
 - **Sira**: Position (1 = first product, 2-10 = back products)
@@ -138,9 +179,25 @@ Excel spreadsheet with columns:
 - **UrunToplamStok**: Product total stock
 - **kisakodrenk**: Unique product identifier (KisaKod + Renk)
 
+**Sheet 2: Kriter_Ozet (Criteria Summary)**
+- **Kriter_Adi**: Constraint name
+- **Beklenen_Deger**: Expected value
+- **Gerceklesen_Deger**: Actual achieved value
+- **Durum**: Status (OK / FAILED)
+- **Notlar**: Additional notes
+
+This sheet validates all constraints including:
+- NOS/DVM minimum counts
+- Per-product stock requirements
+- Global stock targets (FIRST sum, total sum)
+- Per-day distinct UrunCinsi/color requirements
+- Uniqueness rules
+- Seasonal correctness
+- Size/stock rules
+
 ### 2. instagram_haftalik_plan.md
 
-Markdown table with the same data, suitable for documentation or sharing.
+Markdown table with the same plan data, suitable for documentation or sharing.
 
 ## Business Rules
 
@@ -160,9 +217,13 @@ For detailed specification, see `DEVIN_INSTRUCTIONS (1).md` and `AUDIT.md`.
 
 ```
 devin-kontrol/
-├── instagram_auto_post.py    # Original CLI script with all business logic
-├── planner.py                 # Refactored core planning module
-├── gui_app.py                 # Tkinter GUI application
+├── instagram_auto_post.py    # Core business logic and CLI script
+├── planner.py                 # Planning orchestration module
+├── config.py                  # Configuration dataclass (Phase 1)
+├── validator.py               # Constraint validation module (Phase 2)
+├── constraint_analyzer.py     # Constraint analysis and suggestions (Phase 3)
+├── gui_app.py                 # Simple Tkinter GUI application
+├── gui_app_v2.py              # Comprehensive GUI with all parameters (Phase 1)
 ├── build_exe.bat              # Windows .exe build script
 ├── requirements.txt           # Python dependencies
 ├── stokdosya.xlsx            # Sample stock data file
@@ -205,7 +266,30 @@ If the planner cannot meet all constraints (e.g., not enough NOS products), it w
 
 ## Recent Updates
 
-See `AUDIT.md` for a comprehensive audit report. Recent fixes include:
+### Phase 1-3: Comprehensive Configuration System (Latest)
+
+**Phase 1: Full Configuration GUI**
+- New `gui_app_v2.py` with tabbed interface for 30+ parameters
+- `config.py` module with PlanConfig dataclass
+- All constraints now configurable via GUI (no hard-coded values)
+- Save/Load configuration to JSON
+- 6 tabs: Plan Settings, FIRST Criteria, BACK Criteria, Advanced Rules, Global Targets, Output
+
+**Phase 2: Validation System**
+- New `validator.py` module for comprehensive constraint validation
+- Kriter_Ozet (Criteria Summary) sheet in Excel output
+- Validates: NOS/DVM counts, stock targets, global stock sums, per-day constraints, uniqueness, seasonal correctness, size/stock rules
+- Human-readable validation summary in output
+
+**Phase 3: Constraint Analyzer**
+- New `constraint_analyzer.py` module for smart suggestions
+- Analyzes why constraints fail and suggests specific relaxations
+- Data-driven suggestions based on actual pool sizes
+- Ready for integration into best-effort dialogs
+
+### Initial Audit and Fixes
+
+See `AUDIT.md` for a comprehensive audit report. Initial fixes included:
 
 1. **Critical runtime bug fix** (merge syntax error)
 2. **Cekim filter correction** (now accepts both "EVET" and "NA")
