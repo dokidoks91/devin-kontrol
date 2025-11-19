@@ -696,7 +696,7 @@ def assign_back_products(posts, back_candidates: pd.DataFrame, cfg: dict):
 # 10. Kısıt analizi & NOS/DVM kontrolü
 # ============================================================
 
-def run_constraint_analyzer(calendar, first_candidates: pd.DataFrame, back_candidates: pd.DataFrame, cfg: dict) -> bool:
+def run_constraint_analyzer(calendar, first_candidates: pd.DataFrame, back_candidates: pd.DataFrame, cfg: dict, decide=None) -> bool:
     print("\n" + "=" * 70)
     print("KISIT ANALİZİ")
     print("=" * 70)
@@ -728,10 +728,12 @@ def run_constraint_analyzer(calendar, first_candidates: pd.DataFrame, back_candi
         "- Beden/stok kurallarını (front/back_size_stock_rules) biraz gevşetebilirsin.",
     ]
     text = "\n".join(reason_lines)
+    if decide:
+        return decide(text)
     return ask_best_effort_or_abort(text)
 
 
-def check_weekly_nos_dvm(posts, cfg: dict, first_candidates: pd.DataFrame) -> bool:
+def check_weekly_nos_dvm(posts, cfg: dict, first_candidates: pd.DataFrame, decide=None) -> bool:
     # Plandaki distinct kisakodrenk
     nos_first_plan = {
         p["first_product"]["kisakodrenk"]
@@ -780,6 +782,8 @@ def check_weekly_nos_dvm(posts, cfg: dict, first_candidates: pd.DataFrame) -> bo
         )
 
     text = "\n".join(reason_lines)
+    if decide:
+        return decide(text)
     return ask_best_effort_or_abort(text)
 
 
