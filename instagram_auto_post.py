@@ -514,6 +514,9 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict):
 
     posts = []
     used_first_kisakodrenk = set()
+    
+    kisakod_last_day_index = {}
+    min_gap_days = cfg.get("same_kisakod_min_gap_days", 0)
 
     # Gün bazında slotları grupla
     day_slots = {}
@@ -527,7 +530,7 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict):
         if slot["day_name"] not in ordered_days:
             ordered_days.append(slot["day_name"])
 
-    for day_name in ordered_days:
+    for day_index, day_name in enumerate(ordered_days):
         slots = day_slots[day_name]
         day_posts = []
 
@@ -537,6 +540,13 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict):
                 kisakodrenk = product["kisakodrenk"]
                 if kisakodrenk in used_first_kisakodrenk:
                     continue
+                
+                kisakod = product["KisaKod"]
+                if kisakod in kisakod_last_day_index:
+                    last_day_idx = kisakod_last_day_index[kisakod]
+                    days_since = day_index - last_day_idx
+                    if days_since < min_gap_days:
+                        continue
 
                 test_post = {
                     "day_name": day_name,
@@ -550,6 +560,7 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict):
                     posts.append(test_post)
                     day_posts.append(test_post)
                     used_first_kisakodrenk.add(kisakodrenk)
+                    kisakod_last_day_index[kisakod] = day_index
                     assigned = True
                     break
 
@@ -568,11 +579,19 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict):
                 slot_idx = len(day_posts) - 1 - attempt
                 old_post = day_posts[slot_idx]
                 old_kisakodrenk = old_post["first_product"]["kisakodrenk"]
+                old_kisakod = old_post["first_product"]["KisaKod"]
                 
                 for idx, product in first_candidates.iterrows():
                     kisakodrenk = product["kisakodrenk"]
                     if kisakodrenk in used_first_kisakodrenk:
                         continue
+                    
+                    kisakod = product["KisaKod"]
+                    if kisakod in kisakod_last_day_index:
+                        last_day_idx = kisakod_last_day_index[kisakod]
+                        days_since = day_index - last_day_idx
+                        if days_since < min_gap_days:
+                            continue
                     
                     test_day_posts = day_posts.copy()
                     test_post = {
@@ -587,6 +606,10 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict):
                         day_posts[slot_idx] = test_post
                         used_first_kisakodrenk.remove(old_kisakodrenk)
                         used_first_kisakodrenk.add(kisakodrenk)
+                        
+                        if old_kisakod in kisakod_last_day_index and kisakod_last_day_index[old_kisakod] == day_index:
+                            del kisakod_last_day_index[old_kisakod]
+                        kisakod_last_day_index[kisakod] = day_index
                         
                         for i, p in enumerate(posts):
                             if p["day_name"] == day_name and p["time"] == old_post["time"]:
@@ -696,7 +719,7 @@ def assign_back_products(posts, back_candidates: pd.DataFrame, cfg: dict):
 # 10. Kısıt analizi & NOS/DVM kontrolü
 # ============================================================
 
-def run_constraint_analyzer(calendar, first_candidates: pd.DataFrame, back_candidates: pd.DataFrame, cfg: dict, decide=None) -> bool:
+def run_constraint_analyzer(calendar, first_candidates: pd.DataFrame, back_candidates: pd.DataFrame, cfg: dict, unique_products: pd.DataFrame = None, decide=None) -> bool:
     print("\n" + "=" * 70)
     print("KISIT ANALİZİ")
     print("=" * 70)
@@ -716,24 +739,33 @@ def run_constraint_analyzer(calendar, first_candidates: pd.DataFrame, back_candi
         print("\n✓ Aday sayıları, teorik olarak yeterli görünüyor.")
         return True
 
-    reason_lines = [
-        "Aday ürün sayıları bazı kısıtları karşılamıyor:",
-        f"- FIRST aday sayısı: {available_first} (gereken: {required_first})",
-        f"- BACK  aday sayısı: {available_back} (gereken: {required_back})",
-        "",
-        "Öneriler (manuel olarak kriterleri güncellerken kullanabilirsin):",
-        f"- min_total_stock_front değerini biraz düşürmeyi deneyebilirsin. (şu an: {cfg['min_total_stock_front']})",
-        f"- min_total_stock_back değerini biraz düşürmeyi deneyebilirsin. (şu an: {cfg['min_total_stock_back']})",
-        "- Yazlık + Kışlık filtrelerini genişletebilirsin (use_yazlik_*/use_kislik_*).",
-        "- Beden/stok kurallarını (front/back_size_stock_rules) biraz gevşetebilirsin.",
-    ]
-    text = "\n".join(reason_lines)
+    try:
+        from constraint_analyzer import analyze_constraints
+        violations, suggestions, message = analyze_constraints(
+            calendar, first_candidates, back_candidates, cfg, unique_products
+        )
+        text = message + "\n\nBest-effort yöntemiyle devam etmek ister misiniz?"
+    except Exception as e:
+        print(f"Uyarı: Constraint analyzer hatası: {e}")
+        reason_lines = [
+            "Aday ürün sayıları bazı kısıtları karşılamıyor:",
+            f"- FIRST aday sayısı: {available_first} (gereken: {required_first})",
+            f"- BACK  aday sayısı: {available_back} (gereken: {required_back})",
+            "",
+            "Öneriler (manuel olarak kriterleri güncellerken kullanabilirsin):",
+            f"- min_total_stock_front değerini biraz düşürmeyi deneyebilirsin. (şu an: {cfg.get('min_total_stock_front', 'N/A')})",
+            f"- min_total_stock_back değerini biraz düşürmeyi deneyebilirsin. (şu an: {cfg.get('min_total_stock_back', 'N/A')})",
+            "- Yazlık + Kışlık filtrelerini genişletebilirsin (use_yazlik_*/use_kislik_*).",
+            "- Beden/stok kurallarını (front/back_size_stock_rules) biraz gevşetebilirsin.",
+        ]
+        text = "\n".join(reason_lines)
+    
     if decide:
         return decide(text)
     return ask_best_effort_or_abort(text)
 
 
-def check_weekly_nos_dvm(posts, cfg: dict, first_candidates: pd.DataFrame, decide=None) -> bool:
+def check_weekly_nos_dvm(posts, cfg: dict, first_candidates: pd.DataFrame, calendar=None, back_candidates: pd.DataFrame = None, unique_products: pd.DataFrame = None, decide=None) -> bool:
     # Plandaki distinct kisakodrenk
     nos_first_plan = {
         p["first_product"]["kisakodrenk"]
@@ -769,19 +801,28 @@ def check_weekly_nos_dvm(posts, cfg: dict, first_candidates: pd.DataFrame, decid
     if len(nos_first_plan) >= min_nos and len(dvm_first_plan) >= min_dvm:
         return True
 
-    reason_lines = ["NOS/DVM FIRST minimumu tam karşılanamıyor:", ""]
-    if len(nos_first_plan) < min_nos:
-        reason_lines.append(f"- NOS hedefi karşılanamadı: {len(nos_first_plan)} < {min_nos}")
-        reason_lines.append(
-            f"  (Havuzda NOS='E' FIRST adayı sayısı: {len(nos_first_pool)})"
+    try:
+        from constraint_analyzer import analyze_constraints
+        violations, suggestions, message = analyze_constraints(
+            calendar or [], first_candidates, back_candidates or pd.DataFrame(), 
+            cfg, unique_products, posts
         )
-    if len(dvm_first_plan) < min_dvm:
-        reason_lines.append(f"- DVM hedefi karşılanamadı: {len(dvm_first_plan)} < {min_dvm}")
-        reason_lines.append(
-            f"  (Havuzda DVM='DVM' FIRST adayı sayısı: {len(dvm_first_pool)})"
-        )
-
-    text = "\n".join(reason_lines)
+        text = message + "\n\nBest-effort yöntemiyle devam etmek ister misiniz?"
+    except Exception as e:
+        print(f"Uyarı: Constraint analyzer hatası: {e}")
+        reason_lines = ["NOS/DVM FIRST minimumu tam karşılanamıyor:", ""]
+        if len(nos_first_plan) < min_nos:
+            reason_lines.append(f"- NOS hedefi karşılanamadı: {len(nos_first_plan)} < {min_nos}")
+            reason_lines.append(
+                f"  (Havuzda NOS='E' FIRST adayı sayısı: {len(nos_first_pool)})"
+            )
+        if len(dvm_first_plan) < min_dvm:
+            reason_lines.append(f"- DVM hedefi karşılanamadı: {len(dvm_first_plan)} < {min_dvm}")
+            reason_lines.append(
+                f"  (Havuzda DVM='DVM' FIRST adayı sayısı: {len(dvm_first_pool)})"
+            )
+        text = "\n".join(reason_lines)
+    
     if decide:
         return decide(text)
     return ask_best_effort_or_abort(text)

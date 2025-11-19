@@ -122,7 +122,7 @@ def run_planner(
         back_candidates = filter_back_products(unique_products, cfg)
         
         emit("Kısıt analizi yapılıyor...")
-        if not run_constraint_analyzer(calendar, first_candidates, back_candidates, cfg, decide=decide):
+        if not run_constraint_analyzer(calendar, first_candidates, back_candidates, cfg, unique_products, decide=decide):
             return {
                 "success": False,
                 "summary_text": "Plan üretimi iptal edildi (kısıt analizi başarısız).",
@@ -139,7 +139,7 @@ def run_planner(
             }
         
         emit("NOS/DVM kontrolü yapılıyor...")
-        if not check_weekly_nos_dvm(posts, cfg, first_candidates, decide=decide):
+        if not check_weekly_nos_dvm(posts, cfg, first_candidates, calendar, back_candidates, unique_products, decide=decide):
             return {
                 "success": False,
                 "summary_text": "Plan üretimi iptal edildi (NOS/DVM kuralları karşılanamadı).",

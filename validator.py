@@ -215,6 +215,39 @@ class PlanValidator:
             durum="OK" if len(duplicates) == 0 else "FAILED",
             notlar=f"Tekrarlı: {', '.join(list(duplicates.keys())[:5])}" if duplicates else ""
         ))
+        
+        min_gap_days = self.cfg.get("same_kisakod_min_gap_days", 0)
+        if min_gap_days > 0:
+            day_order = []
+            day_posts = {}
+            for p in self.posts:
+                day = p["day_name"]
+                if day not in day_order:
+                    day_order.append(day)
+                if day not in day_posts:
+                    day_posts[day] = []
+                day_posts[day].append(p)
+            
+            kisakod_violations = []
+            kisakod_last_day_idx = {}
+            
+            for day_idx, day in enumerate(day_order):
+                for p in day_posts[day]:
+                    kisakod = p["first_product"]["KisaKod"]
+                    if kisakod in kisakod_last_day_idx:
+                        last_idx = kisakod_last_day_idx[kisakod]
+                        gap = day_idx - last_idx
+                        if gap < min_gap_days:
+                            kisakod_violations.append(f"{kisakod} (gap: {gap} < {min_gap_days})")
+                    kisakod_last_day_idx[kisakod] = day_idx
+            
+            self.results.append(ConstraintResult(
+                kriter_adi="Aynı KisaKod minimum ara gün sayısı",
+                beklenen_deger=f"Minimum {min_gap_days} gün ara",
+                gerceklesen_deger=f"{len(kisakod_violations)} ihlal",
+                durum="OK" if len(kisakod_violations) == 0 else "FAILED",
+                notlar=f"İhlaller: {', '.join(kisakod_violations[:5])}" if kisakod_violations else ""
+            ))
     
     def _validate_seasonal(self):
         """Validate seasonal (Yazlık/Kışlık) correctness"""
