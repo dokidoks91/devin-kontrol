@@ -32,6 +32,7 @@ def run_planner(
     mode_back: str = "Her ikisi",
     on_progress=None,
     on_decision=None,
+    config_override=None,
 ) -> dict:
     """
     Runs the Instagram post planning logic and returns a summary dict.
@@ -44,6 +45,7 @@ def run_planner(
         mode_back: Back product seasonal mode: "Yazlık", "Kışlık", or "Her ikisi"
         on_progress: Optional callback function(message: str) for progress updates
         on_decision: Optional callback function(message: str) -> bool for user decisions
+        config_override: Optional dict to override default config (for comprehensive GUI)
     
     Returns:
         dict with keys:
@@ -72,33 +74,37 @@ def run_planner(
         emit("INSTAGRAM WEEKLY POST PLANNER")
         emit("=" * 70)
         
-        cfg = DEFAULT_CFG.copy()
-        cfg["stock_excel_path"] = excel_path
-        cfg["plan_start_day_name"] = start_day
-        cfg["plan_num_days"] = num_days
-        
-        if mode_front == "Yazlık":
-            cfg["use_yazlik_front"] = True
-            cfg["use_kislik_front"] = False
-        elif mode_front == "Kışlık":
-            cfg["use_yazlik_front"] = False
-            cfg["use_kislik_front"] = True
+        if config_override:
+            cfg = config_override.copy()
         else:
-            cfg["use_yazlik_front"] = True
-            cfg["use_kislik_front"] = True
-        
-        if mode_back == "Yazlık":
-            cfg["use_yazlik_back"] = True
-            cfg["use_kislik_back"] = False
-        elif mode_back == "Kışlık":
-            cfg["use_yazlik_back"] = False
-            cfg["use_kislik_back"] = True
-        else:
-            cfg["use_yazlik_back"] = True
-            cfg["use_kislik_back"] = True
+            cfg = DEFAULT_CFG.copy()
+            cfg["stock_excel_path"] = excel_path
+            cfg["plan_start_day_name"] = start_day
+            cfg["plan_num_days"] = num_days
+            
+            if mode_front == "Yazlık":
+                cfg["use_yazlik_front"] = True
+                cfg["use_kislik_front"] = False
+            elif mode_front == "Kışlık":
+                cfg["use_yazlik_front"] = False
+                cfg["use_kislik_front"] = True
+            else:
+                cfg["use_yazlik_front"] = True
+                cfg["use_kislik_front"] = True
+            
+            if mode_back == "Yazlık":
+                cfg["use_yazlik_back"] = True
+                cfg["use_kislik_back"] = False
+            elif mode_back == "Kışlık":
+                cfg["use_yazlik_back"] = False
+                cfg["use_kislik_back"] = True
+            else:
+                cfg["use_yazlik_back"] = True
+                cfg["use_kislik_back"] = True
         
         emit(f"\nPlan: {start_day} başlangıçlı, {num_days} günlük olarak ayarlandı.")
-        emit(f"Front mod: {mode_front}, Back mod: {mode_back}\n")
+        if not config_override:
+            emit(f"Front mod: {mode_front}, Back mod: {mode_back}\n")
         
         emit("Stok verisi yükleniyor...")
         raw_df = load_stock_data(cfg)
