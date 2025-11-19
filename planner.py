@@ -130,7 +130,7 @@ def run_planner(
             }
         
         emit("FIRST ürünler atanıyor...")
-        posts = assign_first_products(calendar, first_candidates, cfg)
+        posts = assign_first_products(calendar, first_candidates, cfg, decide=decide)
         if not posts:
             return {
                 "success": False,

@@ -134,7 +134,19 @@ def ask_best_effort_or_abort(reason_text: str) -> bool:
     Ortak uyarı / karar fonksiyonu.
     True dönerse: best-effort ile devam et.
     False dönerse: işlemi iptal et.
+    
+    IMPORTANT: This function should ONLY be called from CLI mode.
+    When running from GUI, the decide callback should be used instead.
     """
+    import sys
+    
+    if not hasattr(sys, 'stdin') or sys.stdin is None or (hasattr(sys.stdin, 'isatty') and not sys.stdin.isatty()):
+        raise RuntimeError(
+            "Interactive CLI prompt attempted in GUI mode. "
+            "This is a bug - the decide callback should have been used instead. "
+            "Please report this error with the context where it occurred."
+        )
+    
     print("\n" + "=" * 70)
     print("⚠ KRİTER UYARISI")
     print("=" * 70)
@@ -507,7 +519,7 @@ def check_per_day_constraints(day_posts, cfg: dict, is_final_check: bool = False
 # 8. FIRST ürünlerin atanması
 # ============================================================
 
-def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict):
+def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, decide=None):
     print("\nFIRST ürünler post slotlarına atanıyor...")
 
     first_candidates = prioritize_products(first_candidates, cfg, "priority_mode_front")
@@ -631,8 +643,12 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict):
                         reason_text += f"  - {v}\n"
                     reason_text += "\nBu günlük kısıtları karşılayamıyorum."
                     
-                    if not ask_best_effort_or_abort(reason_text):
-                        return []
+                    if decide:
+                        if not decide(reason_text):
+                            return []
+                    else:
+                        if not ask_best_effort_or_abort(reason_text):
+                            return []
 
     print(f"\nToplam atanan FIRST post sayısı: {len(posts)}")
     return posts
