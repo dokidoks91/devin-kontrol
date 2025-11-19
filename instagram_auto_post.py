@@ -221,7 +221,7 @@ def build_unique_products(df: pd.DataFrame) -> pd.DataFrame:
             }
         )
     size_df = pd.DataFrame(size_info)
-    unique_products = unique_products.merge(size_df, on("kisakodrenk"), how="left")
+    unique_products = unique_products.merge(size_df, on="kisakodrenk", how="left")
 
     # Sezon rakamları (5Y131 vs 4K..., vs 3S... gibi)
     def _season_digit(val):
