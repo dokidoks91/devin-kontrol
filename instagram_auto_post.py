@@ -556,12 +556,60 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict):
             if not assigned:
                 print(f"  Uyarı: {day_name} {slot['time']} için FIRST ürün bulunamadı.")
 
-        # Gün sonunda final kontrol ve sadece uyarı
+        # Gün sonunda final kontrol ve repair denemesi
         ok, violations = check_per_day_constraints(day_posts, cfg, is_final_check=True)
         if not ok:
-            print(f"\n  [GÜNSEL KISIT UYARISI] {day_name} için:")
-            for v in violations:
-                print("   -", v)
+            print(f"\n  [GÜNSEL KISIT] {day_name} için min-distinct kuralları sağlanamadı, repair deneniyor...")
+            
+            for attempt in range(min(3, len(day_posts))):
+                if attempt >= len(day_posts):
+                    break
+                    
+                slot_idx = len(day_posts) - 1 - attempt
+                old_post = day_posts[slot_idx]
+                old_kisakodrenk = old_post["first_product"]["kisakodrenk"]
+                
+                for idx, product in first_candidates.iterrows():
+                    kisakodrenk = product["kisakodrenk"]
+                    if kisakodrenk in used_first_kisakodrenk:
+                        continue
+                    
+                    test_day_posts = day_posts.copy()
+                    test_post = {
+                        "day_name": day_name,
+                        "time": old_post["time"],
+                        "first_product": product.to_dict(),
+                    }
+                    test_day_posts[slot_idx] = test_post
+                    
+                    is_valid, _ = check_per_day_constraints(test_day_posts, cfg, is_final_check=True)
+                    if is_valid:
+                        day_posts[slot_idx] = test_post
+                        used_first_kisakodrenk.remove(old_kisakodrenk)
+                        used_first_kisakodrenk.add(kisakodrenk)
+                        
+                        for i, p in enumerate(posts):
+                            if p["day_name"] == day_name and p["time"] == old_post["time"]:
+                                posts[i] = test_post
+                                break
+                        
+                        print(f"    → Repair başarılı: {old_post['time']} slotu güncellendi")
+                        ok = True
+                        break
+                
+                if ok:
+                    break
+            
+            if not ok:
+                ok_final, violations_final = check_per_day_constraints(day_posts, cfg, is_final_check=True)
+                if not ok_final:
+                    reason_text = f"{day_name} günü için günlük kısıtlar sağlanamıyor:\n"
+                    for v in violations_final:
+                        reason_text += f"  - {v}\n"
+                    reason_text += "\nBu günlük kısıtları karşılayamıyorum."
+                    
+                    if not ask_best_effort_or_abort(reason_text):
+                        return []
 
     print(f"\nToplam atanan FIRST post sayısı: {len(posts)}")
     return posts
