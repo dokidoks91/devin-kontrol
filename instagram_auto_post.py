@@ -39,8 +39,8 @@ DEFAULT_CFG = {
     "use_kislik_back": True,
 
     # Cekim filtreleri – hepsi UPPERCASE tutulacak: EVET, NA, ...
-    "allowed_cekim_front": ["EVET"],
-    "allowed_cekim_back": ["EVET"],
+    "allowed_cekim_front": ["EVET", "NA"],
+    "allowed_cekim_back": ["EVET", "NA"],
 
     # One Atilma Tarihi kuralı (sadece FIRST için)
     # Referans tarih: bu tarihten X gün geriye bakıyoruz
