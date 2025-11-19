@@ -791,7 +791,7 @@ def check_weekly_nos_dvm(posts, cfg: dict, first_candidates: pd.DataFrame, decid
 # 11. Dışa aktarma ve özet
 # ============================================================
 
-def export_to_excel(posts, cfg: dict) -> pd.DataFrame:
+def export_to_excel(posts, cfg: dict, validation_df=None) -> pd.DataFrame:
     print("\nExcel çıktısı oluşturuluyor...")
 
     rows = []
@@ -834,9 +834,16 @@ def export_to_excel(posts, cfg: dict) -> pd.DataFrame:
     df = df.sort_values(["day_order", "PostSaati", "Sira"]).drop(columns=["day_order"])
 
     output_path = "instagram_haftalik_plan.xlsx"
-    df.to_excel(output_path, index=False, engine="openpyxl")
-
-    print(f"Excel dosyası yazıldı: {output_path} (toplam satır: {len(df)})")
+    
+    if validation_df is not None:
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name="Plan", index=False)
+            validation_df.to_excel(writer, sheet_name="Kriter_Ozet", index=False)
+        print(f"Excel dosyası yazıldı: {output_path} (Plan: {len(df)} satır, Kriter_Ozet: {len(validation_df)} satır)")
+    else:
+        df.to_excel(output_path, index=False, engine="openpyxl")
+        print(f"Excel dosyası yazıldı: {output_path} (toplam satır: {len(df)})")
+    
     return df
 
 

@@ -149,12 +149,23 @@ def run_planner(
         emit("BACK ürünler atanıyor...")
         posts = assign_back_products(posts, back_candidates, cfg)
         
+        emit("Plan doğrulaması yapılıyor...")
+        try:
+            from validator import validate_plan
+            validation_results, validation_summary, validation_df = validate_plan(
+                posts, cfg, first_candidates, back_candidates
+            )
+            emit(validation_summary)
+        except Exception as e:
+            emit(f"Uyarı: Doğrulama sırasında hata: {e}")
+            validation_df = None
+        
         emit("Excel çıktısı oluşturuluyor...")
         output_dir = os.path.dirname(os.path.abspath(excel_path))
         output_excel = os.path.join(output_dir, "instagram_haftalik_plan.xlsx")
         output_md = os.path.join(output_dir, "instagram_haftalik_plan.md")
         
-        plan_df = export_to_excel(posts, cfg)
+        plan_df = export_to_excel(posts, cfg, validation_df)
         
         emit("Markdown çıktısı oluşturuluyor...")
         export_to_markdown(posts, cfg)
