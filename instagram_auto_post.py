@@ -318,10 +318,10 @@ def check_one_atilma_tarihi_front(row, cfg: dict) -> bool:
     """One Atilma Tarihi - sadece FIRST için."""
     value = row.get("One Atilma Tarihi", None)
 
-    if value is None:
+    if value is None or pd.isna(value):
         return True
-    s = str(value).strip()
-    if s in ("", "NAN", "NA", "#N/A"):
+    s = str(value).strip().upper()
+    if s in ("", "NAN", "NA", "#N/A", "NAT"):
         return True
 
     try:
