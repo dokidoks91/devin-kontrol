@@ -1266,7 +1266,7 @@ def build_global_kriter_ozet_sheet(posts, cfg: dict) -> pd.DataFrame:
     
     rows.append({
         "Kriter_adi": "Ayni_KisaKod_MAX_FIRST_Kullanim",
-        "Beklenen": max_kisakod_uses_config if max_kisakod_uses_config > 0 else "Sınırsız",
+        "Beklenen": max_kisakod_uses_config if max_kisakod_uses_config > 0 else "0 (No limit on KisaKod uses)",
         "Gerceklesen": max_kisakod_uses_actual,
         "Status": "OK" if max_kisakod_uses_config == 0 or max_kisakod_uses_actual <= max_kisakod_uses_config else "FAILED"
     })
@@ -1277,7 +1277,7 @@ def build_global_kriter_ozet_sheet(posts, cfg: dict) -> pd.DataFrame:
     
     rows.append({
         "Kriter_adi": "FIRST_Siyah_Gunluk_Limit",
-        "Beklenen": max_black_config if max_black_config > 0 else "Sınırsız",
+        "Beklenen": max_black_config if max_black_config > 0 else "0 (No limit on black products)",
         "Gerceklesen": max_black_actual,
         "Status": "OK" if max_black_config == 0 or max_black_actual <= max_black_config else "FAILED"
     })
