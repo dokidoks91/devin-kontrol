@@ -411,6 +411,60 @@ class PlanValidator:
         return pd.DataFrame(data)
 
 
+def compute_black_first_counts_by_day(posts: List[Dict]) -> Dict[str, int]:
+    """
+    Compute count of black FIRST products per day.
+    
+    Shared helper used by:
+    - assign_first_products (assignment-time checking)
+    - check_advanced_first_constraints (post-assignment validation)
+    - _validate_new_first_constraints (reporting)
+    - build_global_kriter_ozet_sheet (reporting)
+    
+    Args:
+        posts: List of post dictionaries with first_product
+        
+    Returns:
+        dict mapping day_name to count of black FIRST products
+    """
+    from product_helpers import is_black_color
+    
+    black_counts = {}
+    for post in posts:
+        day_name = post["day_name"]
+        renk = post["first_product"].get("Renk", "")
+        
+        if day_name not in black_counts:
+            black_counts[day_name] = 0
+        
+        if is_black_color(renk):
+            black_counts[day_name] += 1
+    
+    return black_counts
+
+
+def compute_first_uses_per_kisakod(posts: List[Dict]) -> Dict[str, int]:
+    """
+    Compute count of FIRST uses per KisaKod.
+    
+    Shared helper used by:
+    - assign_first_products (assignment-time checking)
+    - check_advanced_first_constraints (post-assignment validation)
+    - _validate_new_first_constraints (reporting)
+    - build_global_kriter_ozet_sheet (reporting)
+    
+    Args:
+        posts: List of post dictionaries with first_product
+        
+    Returns:
+        dict mapping KisaKod to count of FIRST uses
+    """
+    from collections import Counter
+    
+    kisakod_counts = Counter(post["first_product"]["KisaKod"] for post in posts)
+    return dict(kisakod_counts)
+
+
 def validate_plan(posts: List[Dict], cfg: Dict, first_candidates: pd.DataFrame, back_candidates: pd.DataFrame) -> tuple:
     """
     Convenience function to validate a plan and return results.

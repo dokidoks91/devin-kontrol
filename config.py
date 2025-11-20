@@ -155,12 +155,14 @@ class PlanConfig:
         front_rules = []
         for size_count in sorted(self.front_size_stock_rules.keys()):
             y, z = self.front_size_stock_rules[size_count]
-            front_rules.append((size_count, y, z))
+            if y > 0 and z > 0:  # Only include valid rules
+                front_rules.append((size_count, y, z))
         
         back_rules = []
         for size_count in sorted(self.back_size_stock_rules.keys()):
             y, z = self.back_size_stock_rules[size_count]
-            back_rules.append((size_count, y, z))
+            if y > 0 and z > 0:  # Only include valid rules
+                back_rules.append((size_count, y, z))
         
         return {
             "stock_excel_path": self.stock_excel_path,

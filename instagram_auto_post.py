@@ -715,6 +715,64 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, d
     return posts
 
 
+def check_advanced_first_constraints(posts, cfg: dict, decide) -> bool:
+    """
+    Check advanced FIRST-only constraints after assignment.
+    
+    These rules are enforced as hard constraints:
+    - max_black_first_per_day: Max black FIRST products per day
+    - max_first_uses_per_kisakod: Max FIRST uses per KisaKod
+    
+    If either rule is violated, show best-effort dialog and allow user to abort.
+    
+    Args:
+        posts: List of posts with assigned FIRST products
+        cfg: Configuration dict
+        decide: Callback function for best-effort dialog
+        
+    Returns:
+        True if constraints pass or user accepts best-effort mode
+        False if user chooses to abort
+    """
+    from validator import compute_black_first_counts_by_day, compute_first_uses_per_kisakod
+    
+    max_black_per_day = cfg.get("max_black_first_per_day", 0)
+    max_kisakod_uses = cfg.get("max_first_uses_per_kisakod", 0)
+    
+    if max_black_per_day == 0 and max_kisakod_uses == 0:
+        return True
+    
+    violations = []
+    
+    if max_black_per_day > 0:
+        black_counts = compute_black_first_counts_by_day(posts)
+        for day_name, count in black_counts.items():
+            if count > max_black_per_day:
+                violations.append(f"Günlük SİYAH FIRST limiti aşıldı: {day_name} günü {count} adet (limit: {max_black_per_day})")
+    
+    if max_kisakod_uses > 0:
+        kisakod_counts = compute_first_uses_per_kisakod(posts)
+        for kisakod, count in kisakod_counts.items():
+            if count > max_kisakod_uses:
+                violations.append(f"KisaKod FIRST kullanım limiti aşıldı: {kisakod} {count} kez kullanıldı (limit: {max_kisakod_uses})")
+    
+    # If no violations, return True
+    if not violations:
+        return True
+    
+    violation_msg = "\n".join(violations)
+    full_msg = f"Gelişmiş FIRST kuralları ihlal edildi:\n\n{violation_msg}\n\nBu ayarlarla plan oluşturulamıyor. Best-effort yöntemle devam etmek ister misiniz?"
+    
+    user_choice = decide(full_msg)
+    
+    if user_choice:
+        print("\n⚠️  Best-effort modunda devam ediliyor (Gelişmiş FIRST kuralları gevşetildi)")
+        return True
+    else:
+        print("\n❌ Plan oluşturma iptal edildi (Gelişmiş FIRST kuralları karşılanamadı)")
+        return False
+
+
 # ============================================================
 # 9. BACK ürünlerin atanması
 # ============================================================
@@ -993,19 +1051,17 @@ def build_first_kriter_detay_sheet(posts, cfg: dict, raw_df: pd.DataFrame) -> pd
         beden_sayisi = len(product_sizes)
         row["Beden_Sayisi"] = beden_sayisi
         
-        size_rules = cfg.get("front_size_stock_rules", {})
+        size_rules = cfg.get("front_size_stock_rules", [])
         applicable_rule = None
         
-        if isinstance(size_rules, dict):
-            for size_count in sorted(size_rules.keys()):
-                if beden_sayisi >= size_count:
-                    applicable_rule = size_rules[size_count]
-        elif isinstance(size_rules, list):
+        # size_rules is a list of (size_count, y, z) tuples
+        # Find the rule with the largest size_count that is <= beden_sayisi
+        if isinstance(size_rules, list):
             for item in size_rules:
-                if isinstance(item, (list, tuple)) and len(item) == 2:
-                    size_count, rule = item
+                if isinstance(item, (list, tuple)) and len(item) == 3:
+                    size_count, y, z = item
                     if beden_sayisi >= size_count:
-                        applicable_rule = rule
+                        applicable_rule = (y, z)
         
         if applicable_rule and isinstance(applicable_rule, (list, tuple)) and len(applicable_rule) == 2:
             min_sizes_with_stock, min_stock_per_size = applicable_rule
@@ -1175,8 +1231,10 @@ def build_global_kriter_ozet_sheet(posts, cfg: dict) -> pd.DataFrame:
         "Status": gap_status
     })
     
+    from validator import compute_first_uses_per_kisakod, compute_black_first_counts_by_day
+    
     max_kisakod_uses_config = cfg.get("max_first_uses_per_kisakod", 0)
-    kisakod_usage_count = Counter(p["first_product"]["KisaKod"] for p in posts)
+    kisakod_usage_count = compute_first_uses_per_kisakod(posts)
     max_kisakod_uses_actual = max(kisakod_usage_count.values()) if kisakod_usage_count else 0
     
     rows.append({
@@ -1186,12 +1244,9 @@ def build_global_kriter_ozet_sheet(posts, cfg: dict) -> pd.DataFrame:
         "Status": "OK" if max_kisakod_uses_config == 0 or max_kisakod_uses_actual <= max_kisakod_uses_config else "FAILED"
     })
     
-    from product_helpers import is_black_color
     max_black_config = cfg.get("max_black_first_per_day", 0)
-    max_black_actual = 0
-    for day_posts in posts_by_day.values():
-        black_count = sum(1 for p in day_posts if is_black_color(p["first_product"].get("Renk", "")))
-        max_black_actual = max(max_black_actual, black_count)
+    black_counts_by_day = compute_black_first_counts_by_day(posts)
+    max_black_actual = max(black_counts_by_day.values()) if black_counts_by_day else 0
     
     rows.append({
         "Kriter_adi": "FIRST_Siyah_Gunluk_Limit",

@@ -16,6 +16,7 @@ from instagram_auto_post import (
     filter_back_products,
     run_constraint_analyzer,
     assign_first_products,
+    check_advanced_first_constraints,
     check_weekly_nos_dvm,
     assign_back_products,
     export_to_excel,
@@ -136,6 +137,14 @@ def run_planner(
                 "success": False,
                 "summary_text": "Hiç FIRST ürün atanamadı, plan oluşturulamadı.",
                 "error": "No FIRST products could be assigned"
+            }
+        
+        emit("Gelişmiş FIRST kuralları kontrol ediliyor...")
+        if not check_advanced_first_constraints(posts, cfg, decide=decide):
+            return {
+                "success": False,
+                "summary_text": "Plan üretimi iptal edildi (Gelişmiş FIRST kuralları karşılanamadı).",
+                "error": "Advanced FIRST constraints not met or user aborted"
             }
         
         emit("NOS/DVM kontrolü yapılıyor...")
