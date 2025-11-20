@@ -1170,7 +1170,7 @@ def build_global_kriter_ozet_sheet(posts, cfg: dict) -> pd.DataFrame:
     
     rows.append({
         "Kriter_adi": "Ayni_UrunCinsi_Ardisik_Limit",
-        "Beklenen": max_consecutive_uruncinsi_config if max_consecutive_uruncinsi_config > 0 else "Sınırsız",
+        "Beklenen": max_consecutive_uruncinsi_config if max_consecutive_uruncinsi_config > 0 else "0 (No consecutive allowed)",
         "Gerceklesen": max_consecutive_uruncinsi_actual,
         "Status": "OK" if max_consecutive_uruncinsi_config == 0 or max_consecutive_uruncinsi_actual <= max_consecutive_uruncinsi_config else "FAILED"
     })
@@ -1205,7 +1205,7 @@ def build_global_kriter_ozet_sheet(posts, cfg: dict) -> pd.DataFrame:
     
     rows.append({
         "Kriter_adi": "Ayni_Renk_Ardisik_Limit",
-        "Beklenen": max_consecutive_color_config if max_consecutive_color_config > 0 else "Sınırsız",
+        "Beklenen": max_consecutive_color_config if max_consecutive_color_config > 0 else "0 (No consecutive allowed)",
         "Gerceklesen": max_consecutive_color_actual,
         "Status": "OK" if max_consecutive_color_config == 0 or max_consecutive_color_actual <= max_consecutive_color_config else "FAILED"
     })
