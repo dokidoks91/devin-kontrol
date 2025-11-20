@@ -197,12 +197,12 @@ def run_planner(
         nos_first_plan = {
             p["first_product"]["kisakodrenk"]
             for p in posts
-            if str(p["first_product"].get("Nos", "")).upper() == "E"
+            if p["first_product"].get("Nos", "") == "E"
         }
         dvm_first_plan = {
             p["first_product"]["kisakodrenk"]
             for p in posts
-            if str(p["first_product"].get("DVM", "")).upper() == "DVM"
+            if p["first_product"].get("DVM", "") == "DVM"
         }
         
         summary_lines.append(f"\nPlan içindeki NOS='E' FIRST (distinct): {len(nos_first_plan)} (hedef: {cfg['min_nos_front']})")

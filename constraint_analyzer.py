@@ -96,12 +96,12 @@ class ConstraintAnalyzer:
         nos_first_plan = {
             p["first_product"]["kisakodrenk"]
             for p in posts
-            if str(p["first_product"].get("Nos", "")).upper() == "E"
+            if p["first_product"].get("Nos", "") == "E"
         }
         dvm_first_plan = {
             p["first_product"]["kisakodrenk"]
             for p in posts
-            if str(p["first_product"].get("DVM", "")).upper() == "DVM"
+            if p["first_product"].get("DVM", "") == "DVM"
         }
         
         min_nos = self.cfg.get("min_nos_front", 0)
@@ -113,7 +113,7 @@ class ConstraintAnalyzer:
             )
             
             nos_pool = sum(1 for _, r in self.first_candidates.iterrows() 
-                          if str(r.get("Nos", "")).upper() == "E")
+                          if r.get("Nos", "") == "E")
             
             if nos_pool < min_nos:
                 suggestions.append(
@@ -131,7 +131,7 @@ class ConstraintAnalyzer:
             )
             
             dvm_pool = sum(1 for _, r in self.first_candidates.iterrows() 
-                          if str(r.get("DVM", "")).upper() == "DVM")
+                          if r.get("DVM", "") == "DVM")
             
             if dvm_pool < min_dvm:
                 suggestions.append(

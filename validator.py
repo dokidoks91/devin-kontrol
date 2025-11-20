@@ -70,12 +70,12 @@ class PlanValidator:
         nos_first_plan = {
             p["first_product"]["kisakodrenk"]
             for p in self.posts
-            if str(p["first_product"].get("Nos", "")).upper() == "E"
+            if p["first_product"].get("Nos", "") == "E"
         }
         dvm_first_plan = {
             p["first_product"]["kisakodrenk"]
             for p in self.posts
-            if str(p["first_product"].get("DVM", "")).upper() == "DVM"
+            if p["first_product"].get("DVM", "") == "DVM"
         }
         
         min_nos = self.cfg.get("min_nos_front", 0)

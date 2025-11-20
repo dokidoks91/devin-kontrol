@@ -166,6 +166,18 @@ def ask_best_effort_or_abort(reason_text: str) -> bool:
 # ============================================================
 
 def load_stock_data(cfg: dict) -> pd.DataFrame:
+    """
+    Load and normalize stock data from Excel file.
+    
+    Applies strict normalization to ensure data consistency:
+    - Nos: "E" or "" (empty)
+    - DVM: "DVM" or "" (empty)
+    - Cekim: "EVET", "NA", "#YOK", or "" (empty)
+    
+    Raises ValueError if any unexpected values are found.
+    """
+    from product_helpers import normalize_stock_columns
+    
     excel_path = cfg["stock_excel_path"]
 
     if not os.path.exists(excel_path):
@@ -178,20 +190,7 @@ def load_stock_data(cfg: dict) -> pd.DataFrame:
     print(f"Stok verisi yükleniyor: {excel_path}")
     df = pd.read_excel(excel_path, engine="openpyxl")
 
-    # Temel normalize – Türkçe karakterler korunur, sadece bazı kolonlar upper yapılır
-    for col in ["KisaKod", "Renk", "UrunCinsi", "Sezon", "Nos", "DVM", "Cekim"]:
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.strip()
-
-    # NOS, DVM, Cekim, Sezon için uppercase (kıyaslama için)
-    if "Nos" in df.columns:
-        df["Nos"] = df["Nos"].str.upper()
-    if "DVM" in df.columns:
-        df["DVM"] = df["DVM"].str.upper()
-    if "Cekim" in df.columns:
-        df["Cekim"] = df["Cekim"].str.upper()
-    if "Sezon" in df.columns:
-        df["Sezon"] = df["Sezon"].str.upper()
+    df = normalize_stock_columns(df)
 
     return df
 
@@ -834,24 +833,24 @@ def check_weekly_nos_dvm(posts, cfg: dict, first_candidates: pd.DataFrame, calen
     nos_first_plan = {
         p["first_product"]["kisakodrenk"]
         for p in posts
-        if str(p["first_product"].get("Nos", "")).upper() == "E"
+        if p["first_product"].get("Nos", "") == "E"
     }
     dvm_first_plan = {
         p["first_product"]["kisakodrenk"]
         for p in posts
-        if str(p["first_product"].get("DVM", "")).upper() == "DVM"
+        if p["first_product"].get("DVM", "") == "DVM"
     }
 
     # Havuzda mevcut adaylar
     nos_first_pool = {
         r["kisakodrenk"]
         for _, r in first_candidates.iterrows()
-        if str(r.get("Nos", "")).upper() == "E"
+        if r.get("Nos", "") == "E"
     }
     dvm_first_pool = {
         r["kisakodrenk"]
         for _, r in first_candidates.iterrows()
-        if str(r.get("DVM", "")).upper() == "DVM"
+        if r.get("DVM", "") == "DVM"
     }
 
     min_nos = cfg.get("min_nos_front", 0)
@@ -1009,12 +1008,12 @@ def print_summary(posts, cfg: dict, first_candidates: pd.DataFrame, back_candida
     nos_first_plan = {
         p["first_product"]["kisakodrenk"]
         for p in posts
-        if str(p["first_product"].get("Nos", "")).upper() == "E"
+        if p["first_product"].get("Nos", "") == "E"
     }
     dvm_first_plan = {
         p["first_product"]["kisakodrenk"]
         for p in posts
-        if str(p["first_product"].get("DVM", "")).upper() == "DVM"
+        if p["first_product"].get("DVM", "") == "DVM"
     }
 
     print(f"\nPlan içindeki NOS='E' FIRST (distinct): {len(nos_first_plan)} (hedef: {cfg['min_nos_front']})")
@@ -1024,12 +1023,12 @@ def print_summary(posts, cfg: dict, first_candidates: pd.DataFrame, back_candida
     nos_pool = {
         r["kisakodrenk"]
         for _, r in first_candidates.iterrows()
-        if str(r.get("Nos", "")).upper() == "E"
+        if r.get("Nos", "") == "E"
     }
     dvm_pool = {
         r["kisakodrenk"]
         for _, r in first_candidates.iterrows()
-        if str(r.get("DVM", "")).upper() == "DVM"
+        if r.get("DVM", "") == "DVM"
     }
     print(f"  NOS='E' FIRST aday adedi: {len(nos_pool)}")
     print(f"  DVM='DVM' FIRST aday adedi: {len(dvm_pool)}")
