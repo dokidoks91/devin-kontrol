@@ -338,9 +338,24 @@ def check_one_atilma_tarihi_front(row, cfg: dict) -> bool:
         return True
 
     try:
-        ref_date = datetime.strptime(cfg["one_atilma_reference_date"], "%Y-%m-%d")
-        min_days = int(cfg["one_atilma_min_days"])
-        threshold = ref_date - timedelta(days=min_days)
+        ref_date_str = cfg.get("one_atilma_reference_date")
+        min_days = cfg.get("one_atilma_min_days")
+        
+        if not ref_date_str or not min_days:
+            return True
+        
+        ref_date = None
+        for fmt in ["%Y-%m-%d", "%d.%m.%Y"]:
+            try:
+                ref_date = datetime.strptime(ref_date_str, fmt)
+                break
+            except:
+                continue
+        
+        if ref_date is None:
+            return True
+        
+        threshold = ref_date - timedelta(days=int(min_days))
         one_date = pd.to_datetime(value, dayfirst=True, errors='coerce')
         if pd.isna(one_date):
             return True
@@ -990,13 +1005,25 @@ def build_first_kriter_detay_sheet(posts, cfg: dict, raw_df: pd.DataFrame) -> pd
     
     # Compute One Atilma Tarihi threshold
     one_atilma_threshold = None
-    if cfg.get("one_atilma_reference_date") and cfg.get("one_atilma_min_days"):
+    ref_date_str = cfg.get("one_atilma_reference_date")
+    min_days = cfg.get("one_atilma_min_days")
+    
+    if ref_date_str and min_days:
         try:
-            ref_date = datetime.strptime(cfg["one_atilma_reference_date"], "%Y-%m-%d")
-            min_days = int(cfg["one_atilma_min_days"])
-            one_atilma_threshold = ref_date - timedelta(days=min_days)
-        except:
-            pass
+            ref_date = None
+            for fmt in ["%Y-%m-%d", "%d.%m.%Y"]:
+                try:
+                    ref_date = datetime.strptime(ref_date_str, fmt)
+                    break
+                except:
+                    continue
+            
+            if ref_date:
+                one_atilma_threshold = ref_date - timedelta(days=int(min_days))
+            else:
+                print(f"⚠️  Uyarı: One Atilma Tarihi referans tarihi ayrıştırılamadı: {ref_date_str}")
+        except Exception as e:
+            print(f"⚠️  Uyarı: One Atilma Tarihi hesaplaması başarısız: {e}")
     
     for post in posts:
         first = post["first_product"]
