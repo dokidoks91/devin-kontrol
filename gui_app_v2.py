@@ -282,7 +282,7 @@ class PlannerGUI:
         )
         row += 1
         
-        ttk.Checkbutton(frame, text="#N/A değerlerine izin ver", variable=self.one_atilma_allow_na).grid(
+        ttk.Checkbutton(frame, text="Önde hiç kullanılmamışlar (önceliklidir)", variable=self.one_atilma_allow_na).grid(
             row=row, column=0, columnspan=2, sticky=tk.W, padx=20
         )
         row += 1
@@ -730,6 +730,7 @@ class PlannerGUI:
         config.allowed_cekim_front = cekim_front
         
         config.one_atilma_allow_na = self.one_atilma_allow_na.get()
+        config.prioritize_never_used_first = self.one_atilma_allow_na.get()
         config.one_atilma_reference_date = self.one_atilma_date.get()
         config.one_atilma_min_days = self.one_atilma_days.get()
         config.min_total_stock_front = self.min_stock_front.get()

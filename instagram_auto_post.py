@@ -376,6 +376,17 @@ def filter_first_products(unique_products: pd.DataFrame, cfg: dict) -> pd.DataFr
             filtered.apply(lambda r: check_one_atilma_tarihi_front(r, cfg), axis=1)
         ]
         print(f"One Atilma Tarihi filtresi sonrası: {len(filtered)}")
+        
+        def is_never_used(val):
+            if val is None or pd.isna(val):
+                return True
+            s = str(val).strip().upper()
+            return s in ("", "NAN", "NA", "#N/A", "NAT")
+        
+        filtered["never_used_first"] = filtered["One Atilma Tarihi"].apply(is_never_used)
+        never_used_count = filtered["never_used_first"].sum()
+        print(f"  - Hiç kullanılmamış (#N/A): {never_used_count}")
+        print(f"  - Tarih bazlı: {len(filtered) - never_used_count}")
 
     # Min stok
     filtered = filtered[filtered["total_stock"] >= cfg["min_total_stock_front"]]
@@ -439,37 +450,37 @@ def prioritize_products(products: pd.DataFrame, cfg: dict, mode_key: str) -> pd.
     Uses new prioritization switches:
     - prioritize_by_newness: sort by year digit + sequence number
     - prioritize_by_stock: sort by total stock (per-kisakodrenk)
+    - prioritize_never_used_first: prioritize products never used as FIRST (One Atilma Tarihi = #N/A)
     
     If only one is selected, use that as primary sort key.
     If both or neither selected, use legacy mode_key behavior.
     """
     prioritize_newness = cfg.get("prioritize_by_newness", False)
     prioritize_stock = cfg.get("prioritize_by_stock", False)
+    prioritize_never_used = cfg.get("prioritize_never_used_first", True)
     
     if prioritize_newness and not prioritize_stock:
-        return products.sort_values(
-            by=["season_digit", "season_seq", "total_stock"],
-            ascending=[False, False, False],
-        ).reset_index(drop=True)
+        sort_keys = ["season_digit", "season_seq", "total_stock"]
+        ascending = [False, False, False]
     elif prioritize_stock and not prioritize_newness:
-        return products.sort_values(
-            by=["total_stock", "season_digit", "season_seq"],
-            ascending=[False, False, False],
-        ).reset_index(drop=True)
+        sort_keys = ["total_stock", "season_digit", "season_seq"]
+        ascending = [False, False, False]
     else:
         mode = cfg.get(mode_key, "stock_then_newest")
         if mode == "stock_then_newest":
-            return products.sort_values(
-                by=["total_stock", "season_digit", "season_seq"],
-                ascending=[False, False, False],
-            ).reset_index(drop=True)
+            sort_keys = ["total_stock", "season_digit", "season_seq"]
+            ascending = [False, False, False]
         elif mode == "newest_then_stock":
-            return products.sort_values(
-                by=["season_digit", "season_seq", "total_stock"],
-                ascending=[False, False, False],
-            ).reset_index(drop=True)
+            sort_keys = ["season_digit", "season_seq", "total_stock"]
+            ascending = [False, False, False]
         else:
             return products.reset_index(drop=True)
+    
+    if mode_key == "priority_mode_front" and "never_used_first" in products.columns and prioritize_never_used:
+        sort_keys = ["never_used_first"] + sort_keys
+        ascending = [False] + ascending
+    
+    return products.sort_values(by=sort_keys, ascending=ascending).reset_index(drop=True)
 
 
 def check_per_day_constraints(day_posts, cfg: dict, is_final_check: bool = False):
