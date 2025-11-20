@@ -234,7 +234,6 @@ def build_unique_products(df: pd.DataFrame) -> pd.DataFrame:
     size_df = pd.DataFrame(size_info)
     unique_products = unique_products.merge(size_df, on="kisakodrenk", how="left")
 
-    # Sezon rakamları (5Y131 vs 4K..., vs 3S... gibi)
     def _season_digit(val):
         s = str(val)
         if len(s) >= 1 and s[0].isdigit():
@@ -243,12 +242,15 @@ def build_unique_products(df: pd.DataFrame) -> pd.DataFrame:
 
     def _season_seq(val):
         s = str(val)
-        if len(s) >= 4 and s[-3:].isdigit():
-            return int(s[-3:])
+        if len(s) >= 4:
+            last_three = s[-3:]
+            digits_only = ''.join(c for c in last_three if c.isdigit())
+            if digits_only:
+                return int(digits_only)
         return 0
 
-    unique_products["season_digit"] = unique_products["Sezon"].apply(_season_digit)
-    unique_products["season_seq"] = unique_products["Sezon"].apply(_season_seq)
+    unique_products["season_digit"] = unique_products["KisaKod"].apply(_season_digit)
+    unique_products["season_seq"] = unique_products["KisaKod"].apply(_season_seq)
 
     print(f"Toplam unique ürün (kisakodrenk): {len(unique_products)}")
     return unique_products
