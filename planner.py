@@ -4,9 +4,16 @@ Instagram Post Planner - Core Business Logic Module
 
 This module contains the refactored planning logic from instagram_auto_post.py.
 It can be called from CLI, GUI, or any other interface.
+
+Supports interactive best-effort mode with two-pass flow:
+1. Strict pass: Try to generate plan with original config
+2. If fails: Show dialog with relaxation suggestions
+3. Best-effort pass: Apply relaxations and re-run (if user chooses)
 """
 
 import os
+from copy import deepcopy
+from typing import Optional, Tuple, List, Dict, Any
 from instagram_auto_post import (
     DEFAULT_CFG,
     load_stock_data,
@@ -25,6 +32,151 @@ from instagram_auto_post import (
 )
 
 
+def run_planner_with_best_effort(
+    excel_path: str,
+    start_day: str,
+    num_days: int,
+    mode_front: str = "Her ikisi",
+    mode_back: str = "Her ikisi",
+    on_progress=None,
+    on_relaxation_choice=None,
+    config_override=None,
+) -> dict:
+    """
+    Two-pass planner with interactive best-effort mode.
+    
+    PASS 1 (Strict): Try to generate plan with original config
+    PASS 2 (Best-effort): If fails, show dialog and optionally apply relaxations
+    
+    Args:
+        excel_path: Path to stock Excel file
+        start_day: Starting day name in Turkish
+        num_days: Number of days to plan (1-7)
+        mode_front: Front product seasonal mode
+        mode_back: Back product seasonal mode
+        on_progress: Callback for progress updates
+        on_relaxation_choice: Callback(suggestions, message) -> choice
+            Returns: "manual" (user will adjust), "apply" (apply relaxations), "abort" (cancel)
+        config_override: Optional config dict
+        
+    Returns:
+        dict with success, summary_text, output files, and relaxations_applied
+    """
+    
+    def emit(msg: str):
+        """Helper to print and call on_progress callback"""
+        print(msg)
+        if on_progress:
+            on_progress(msg)
+    
+    try:
+        emit("=" * 70)
+        emit("PASS 1: Strict mode - trying with original config")
+        emit("=" * 70)
+        
+        result = run_planner(
+            excel_path=excel_path,
+            start_day=start_day,
+            num_days=num_days,
+            mode_front=mode_front,
+            mode_back=mode_back,
+            on_progress=on_progress,
+            on_decision=None,  # No interactive decisions in strict pass
+            config_override=config_override,
+        )
+        
+        if result["success"]:
+            emit("\n✓ Strict mode succeeded - plan generated without relaxations")
+            result["relaxations_applied"] = []
+            return result
+        
+        emit("\n⚠️  Strict mode failed - analyzing constraints...")
+        
+        if config_override:
+            cfg = config_override.copy()
+        else:
+            cfg = DEFAULT_CFG.copy()
+            cfg["stock_excel_path"] = excel_path
+            cfg["plan_start_day_name"] = start_day
+            cfg["plan_num_days"] = num_days
+        
+        raw_df = load_stock_data(cfg)
+        unique_products = build_unique_products(raw_df)
+        calendar = build_post_calendar(cfg)
+        
+        # Analyze and compute relaxation suggestions
+        from best_effort_analyzer import BestEffortAnalyzer
+        
+        analyzer = BestEffortAnalyzer(calendar, unique_products, cfg, raw_df)
+        suggestions, dialog_message = analyzer.analyze_and_suggest_relaxations()
+        
+        if not suggestions:
+            emit("\n❌ No relaxation suggestions available - cannot proceed")
+            return {
+                "success": False,
+                "summary_text": "Plan oluşturulamadı ve esnetme önerisi bulunamadı.",
+                "error": "No relaxation suggestions available",
+                "relaxations_applied": []
+            }
+        
+        emit(f"\n{dialog_message}")
+        
+        if on_relaxation_choice:
+            choice = on_relaxation_choice(suggestions, dialog_message)
+        else:
+            print("\nSeçenekler:")
+            print("1. Ayarları manuel düzelteceğim (abort)")
+            print("2. Best-effort ile devam et (apply)")
+            user_input = input("Seçiminiz (1/2): ").strip()
+            choice = "apply" if user_input == "2" else "manual"
+        
+        if choice == "manual" or choice == "abort":
+            emit("\n⏸️  Kullanıcı ayarları manuel düzeltmeyi seçti - plan iptal edildi")
+            return {
+                "success": False,
+                "summary_text": "Plan iptal edildi - lütfen ayarları düzeltin ve tekrar deneyin.",
+                "error": "User chose to adjust settings manually",
+                "relaxations_applied": []
+            }
+        
+        emit("\n" + "=" * 70)
+        emit("PASS 2: Best-effort mode - applying relaxations")
+        emit("=" * 70)
+        
+        relaxed_cfg = analyzer.apply_relaxations(suggestions)
+        
+        result = run_planner(
+            excel_path=excel_path,
+            start_day=start_day,
+            num_days=num_days,
+            mode_front=mode_front,
+            mode_back=mode_back,
+            on_progress=on_progress,
+            on_decision=lambda msg: True,  # Auto-accept in best-effort mode
+            config_override=relaxed_cfg,
+        )
+        
+        if result["success"]:
+            emit("\n✓ Best-effort mode succeeded - plan generated with relaxations")
+            result["relaxations_applied"] = suggestions
+        else:
+            emit("\n❌ Best-effort mode also failed - cannot generate plan")
+            result["relaxations_applied"] = suggestions
+        
+        return result
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Hata oluştu: {str(e)}\n{traceback.format_exc()}"
+        emit(error_msg)
+        return {
+            "success": False,
+            "summary_text": error_msg,
+            "error": str(e),
+            "relaxations_applied": []
+        }
+
+
 def run_planner(
     excel_path: str,
     start_day: str,
@@ -34,6 +186,7 @@ def run_planner(
     on_progress=None,
     on_decision=None,
     config_override=None,
+    relaxations_applied=None,
 ) -> dict:
     """
     Runs the Instagram post planning logic and returns a summary dict.
@@ -174,7 +327,7 @@ def run_planner(
         output_excel = os.path.join(output_dir, "instagram_haftalik_plan.xlsx")
         output_md = os.path.join(output_dir, "instagram_haftalik_plan.md")
         
-        plan_df = export_to_excel(posts, cfg, raw_df, validation_df)
+        plan_df = export_to_excel(posts, cfg, raw_df, validation_df, relaxations_applied)
         
         emit("Markdown çıktısı oluşturuluyor...")
         export_to_markdown(posts, cfg)

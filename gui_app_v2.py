@@ -14,7 +14,7 @@ import os
 import sys
 from datetime import datetime
 from config import PlanConfig, create_default_config
-from planner import run_planner
+from planner import run_planner, run_planner_with_best_effort
 
 
 class ScrollableFrame(ttk.Frame):
@@ -707,6 +707,70 @@ class PlannerGUI:
         self.decision_event.wait()
         return self.decision_result
     
+    def on_relaxation_choice(self, suggestions, message):
+        """Handle relaxation choice dialog with two buttons"""
+        choice_result = {"choice": "manual"}
+        
+        def show_dialog():
+            dialog = tk.Toplevel(self.root)
+            dialog.title("Kriter Uyarısı")
+            dialog.geometry("700x500")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            
+            frame = ttk.Frame(dialog, padding="10")
+            frame.pack(fill="both", expand=True)
+            
+            title_label = ttk.Label(frame, text="Bu ayarlarla plan oluşturulamıyor.", 
+                                    font=("Arial", 12, "bold"))
+            title_label.pack(pady=(0, 10))
+            
+            subtitle_label = ttk.Label(frame, text="Aşağıdaki esnetme önerileri ile devam etmek ister misiniz?",
+                                       font=("Arial", 10))
+            subtitle_label.pack(pady=(0, 10))
+            
+            text_frame = ttk.Frame(frame)
+            text_frame.pack(fill="both", expand=True, pady=(0, 10))
+            
+            text_widget = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD, height=15)
+            text_widget.pack(fill="both", expand=True)
+            
+            for i, sug in enumerate(suggestions, 1):
+                text_widget.insert(tk.END, f"{i}. {sug['rule_name']}\n")
+                text_widget.insert(tk.END, f"   Mevcut: {sug['original_value']}\n")
+                text_widget.insert(tk.END, f"   Önerilen: {sug['suggested_value']}\n")
+                if sug.get('estimated_new_candidates', 0) > 0:
+                    text_widget.insert(tk.END, f"   Tahmini etki: +{sug['estimated_new_candidates']} aday\n")
+                text_widget.insert(tk.END, "\n")
+            
+            text_widget.config(state="disabled")
+            
+            button_frame = ttk.Frame(frame)
+            button_frame.pack(fill="x", pady=(10, 0))
+            
+            def on_manual():
+                choice_result["choice"] = "manual"
+                dialog.destroy()
+            
+            def on_apply():
+                choice_result["choice"] = "apply"
+                dialog.destroy()
+            
+            manual_button = ttk.Button(button_frame, text="Hayır, ayarları düzelteceğim", 
+                                       command=on_manual)
+            manual_button.pack(side="left", padx=5)
+            
+            apply_button = ttk.Button(button_frame, text="Evet, best-effort ile devam et", 
+                                      command=on_apply)
+            apply_button.pack(side="right", padx=5)
+            
+            dialog.wait_window()
+        
+        self.root.after(0, show_dialog)
+        self.root.wait_variable(choice_result)
+        
+        return choice_result["choice"]
+    
     def collect_config(self) -> PlanConfig:
         """Collect all GUI values into a PlanConfig object"""
         config = PlanConfig(
@@ -817,14 +881,14 @@ class PlannerGUI:
         try:
             cfg_dict = config.to_dict()
             
-            result = run_planner(
+            result = run_planner_with_best_effort(
                 excel_path=config.stock_excel_path,
                 start_day=config.plan_start_day_name,
                 num_days=config.plan_num_days,
                 mode_front="Her ikisi",  # Handled by config
                 mode_back="Her ikisi",   # Handled by config
                 on_progress=self.on_progress,
-                on_decision=self.on_decision,
+                on_relaxation_choice=self.on_relaxation_choice,
                 config_override=cfg_dict
             )
             

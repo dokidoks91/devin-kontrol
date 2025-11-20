@@ -1329,7 +1329,7 @@ def build_global_kriter_ozet_sheet(posts, cfg: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def export_to_excel(posts, cfg: dict, raw_df: pd.DataFrame = None, validation_df=None) -> pd.DataFrame:
+def export_to_excel(posts, cfg: dict, raw_df: pd.DataFrame = None, validation_df=None, relaxations_applied=None) -> pd.DataFrame:
     print("\nExcel çıktısı oluşturuluyor...")
 
     rows = []
@@ -1375,10 +1375,23 @@ def export_to_excel(posts, cfg: dict, raw_df: pd.DataFrame = None, validation_df
     
     first_kriter_df = None
     global_kriter_df = None
+    relaxations_df = None
     
     if raw_df is not None:
         first_kriter_df = build_first_kriter_detay_sheet(posts, cfg, raw_df)
         global_kriter_df = build_global_kriter_ozet_sheet(posts, cfg)
+    
+    if relaxations_applied and len(relaxations_applied) > 0:
+        relaxation_rows = []
+        for sug in relaxations_applied:
+            relaxation_rows.append({
+                "Rule_Name": sug.get("rule_name", ""),
+                "Original_Value": str(sug.get("original_value", "")),
+                "Relaxed_Value": str(sug.get("suggested_value", "")),
+                "New_Candidate_Count": sug.get("estimated_new_candidates", 0),
+                "Applied": "YES"
+            })
+        relaxations_df = pd.DataFrame(relaxation_rows)
     
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="Plan", index=False)
@@ -1389,6 +1402,9 @@ def export_to_excel(posts, cfg: dict, raw_df: pd.DataFrame = None, validation_df
         if global_kriter_df is not None:
             global_kriter_df.to_excel(writer, sheet_name="Global_Kriter_Ozet", index=False)
         
+        if relaxations_df is not None:
+            relaxations_df.to_excel(writer, sheet_name="Relaxations", index=False)
+        
         if validation_df is not None:
             validation_df.to_excel(writer, sheet_name="Kriter_Ozet_Old", index=False)
     
@@ -1398,6 +1414,8 @@ def export_to_excel(posts, cfg: dict, raw_df: pd.DataFrame = None, validation_df
         print(f"  - FIRST_Kriter_Detay: {len(first_kriter_df)} satır")
     if global_kriter_df is not None:
         print(f"  - Global_Kriter_Ozet: {len(global_kriter_df)} satır")
+    if relaxations_df is not None:
+        print(f"  - Relaxations: {len(relaxations_df)} satır")
     
     return df
 
