@@ -287,7 +287,7 @@ class PlannerGUI:
         )
         row += 1
         
-        ttk.Label(frame, text="Referans Tarih (T):", font=("Arial", 9)).grid(
+        ttk.Label(frame, text="Referans Tarih (T) (yyyy-mm-dd):", font=("Arial", 9)).grid(
             row=row, column=0, sticky=tk.W, padx=20, pady=5
         )
         ttk.Entry(frame, textvariable=self.one_atilma_date, width=15).grid(
