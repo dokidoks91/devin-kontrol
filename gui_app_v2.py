@@ -90,8 +90,14 @@ class PlannerGUI:
         self.min_distinct_color = tk.IntVar(value=3)
         self.same_kisakod_gap = tk.IntVar(value=0)
         
+        self.max_black_first_per_day = tk.IntVar(value=0)
+        self.max_first_uses_per_kisakod = tk.IntVar(value=0)
+        
         self.global_first_stock = tk.IntVar(value=0)
         self.global_total_stock = tk.IntVar(value=0)
+        
+        self.prioritize_by_newness = tk.BooleanVar(value=False)
+        self.prioritize_by_stock = tk.BooleanVar(value=False)
         
         self.progress_queue = queue.Queue()
         self.decision_queue = queue.Queue()
@@ -525,6 +531,42 @@ class PlannerGUI:
         ttk.Label(frame, text="(0 = kısıt yok, 1+ = N gün bekle)", font=("Arial", 8, "italic")).grid(
             row=row, column=0, columnspan=2, sticky=tk.W, padx=40
         )
+        row += 1
+        
+        ttk.Label(frame, text="Aynı KisaKod max kullanım (FIRST):", font=("Arial", 9)).grid(
+            row=row, column=0, sticky=tk.W, padx=20, pady=5
+        )
+        ttk.Spinbox(frame, from_=0, to=20, textvariable=self.max_first_uses_per_kisakod, width=15).grid(
+            row=row, column=1, sticky=tk.W, pady=5
+        )
+        row += 1
+        
+        ttk.Label(frame, text="(0 = kısıt yok, sadece FIRST için)", font=("Arial", 8, "italic")).grid(
+            row=row, column=0, columnspan=2, sticky=tk.W, padx=40
+        )
+        row += 1
+        
+        ttk.Separator(frame, orient="horizontal").grid(
+            row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10
+        )
+        row += 1
+        
+        ttk.Label(frame, text="FIRST Renk Kısıtı:", font=("Arial", 10, "bold")).grid(
+            row=row, column=0, columnspan=2, sticky=tk.W, pady=5
+        )
+        row += 1
+        
+        ttk.Label(frame, text="Günde max kaç FIRST SİYAH renk:", font=("Arial", 9)).grid(
+            row=row, column=0, sticky=tk.W, padx=20, pady=5
+        )
+        ttk.Spinbox(frame, from_=0, to=20, textvariable=self.max_black_first_per_day, width=15).grid(
+            row=row, column=1, sticky=tk.W, pady=5
+        )
+        row += 1
+        
+        ttk.Label(frame, text="(0 = kısıt yok)", font=("Arial", 8, "italic")).grid(
+            row=row, column=0, columnspan=2, sticky=tk.W, padx=40
+        )
     
     def create_global_tab(self, notebook):
         """Global Stock Targets tab"""
@@ -552,6 +594,35 @@ class PlannerGUI:
         )
         ttk.Spinbox(frame, from_=0, to=100000, textvariable=self.global_total_stock, width=15).grid(
             row=row, column=1, sticky=tk.W, pady=5
+        )
+        row += 1
+        
+        ttk.Separator(frame, orient="horizontal").grid(
+            row=row, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10
+        )
+        row += 1
+        
+        ttk.Label(frame, text="Global Önceliklendirme:", font=("Arial", 10, "bold")).grid(
+            row=row, column=0, columnspan=2, sticky=tk.W, pady=5
+        )
+        row += 1
+        
+        ttk.Checkbutton(
+            frame, 
+            text="Yeniliğe göre önceliklendir (KisaKod yıl + sıra)", 
+            variable=self.prioritize_by_newness
+        ).grid(row=row, column=0, columnspan=2, sticky=tk.W, padx=20, pady=5)
+        row += 1
+        
+        ttk.Checkbutton(
+            frame, 
+            text="Stok miktarına göre önceliklendir", 
+            variable=self.prioritize_by_stock
+        ).grid(row=row, column=0, columnspan=2, sticky=tk.W, padx=20, pady=5)
+        row += 1
+        
+        ttk.Label(frame, text="(Her ikisi veya hiçbiri seçilirse mevcut sıralama kullanılır)", font=("Arial", 8, "italic")).grid(
+            row=row, column=0, columnspan=2, sticky=tk.W, padx=40
         )
         row += 1
         
@@ -693,8 +764,14 @@ class PlannerGUI:
         config.min_distinct_color_per_day = self.min_distinct_color.get()
         config.same_kisakod_min_gap_days = self.same_kisakod_gap.get()
         
+        config.max_black_first_per_day = self.max_black_first_per_day.get()
+        config.max_first_uses_per_kisakod = self.max_first_uses_per_kisakod.get()
+        
         config.global_min_first_stock_sum = self.global_first_stock.get()
         config.global_min_total_stock_sum = self.global_total_stock.get()
+        
+        config.prioritize_by_newness = self.prioritize_by_newness.get()
+        config.prioritize_by_stock = self.prioritize_by_stock.get()
         
         return config
     

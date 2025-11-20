@@ -74,6 +74,10 @@ class PlanConfig:
     
     same_kisakod_min_gap_days: Optional[int] = None
     
+    max_black_first_per_day: Optional[int] = None
+    
+    max_first_uses_per_kisakod: Optional[int] = None
+    
     # ============================================================
     # ============================================================
     
@@ -83,6 +87,10 @@ class PlanConfig:
     
     # ============================================================
     # ============================================================
+    
+    prioritize_by_newness: bool = False
+    prioritize_by_stock: bool = False
+    
     priority_mode_front: str = "stock_then_newest"
     priority_mode_back: str = "stock_then_newest"
     
@@ -186,8 +194,14 @@ class PlanConfig:
             "priority_mode_back": self.priority_mode_back,
             
             "same_kisakod_min_gap_days": self.same_kisakod_min_gap_days or 0,
+            "max_black_first_per_day": self.max_black_first_per_day or 0,
+            "max_first_uses_per_kisakod": self.max_first_uses_per_kisakod or 0,
+            
             "global_min_first_stock_sum": self.global_min_first_stock_sum or 0,
             "global_min_total_stock_sum": self.global_min_total_stock_sum or 0,
+            
+            "prioritize_by_newness": self.prioritize_by_newness,
+            "prioritize_by_stock": self.prioritize_by_stock,
         }
 
 
