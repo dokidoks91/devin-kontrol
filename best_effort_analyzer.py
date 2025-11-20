@@ -91,8 +91,9 @@ class BestEffortAnalyzer:
                 "expected": required_first,
                 "is_relaxable": True
             })
-            suggestions.extend(self._analyze_first_min_stock())
-            suggestions.extend(self._analyze_first_size_stock_rules())
+        
+        suggestions.extend(self._analyze_first_min_stock())
+        suggestions.extend(self._analyze_first_size_stock_rules())
         
         back_candidates = filter_back_products(self.unique_products, self.cfg)
         required_back = len(self.calendar) * 9
@@ -108,13 +109,16 @@ class BestEffortAnalyzer:
                 "expected": required_back,
                 "is_relaxable": True
             })
-            suggestions.extend(self._analyze_back_min_stock())
-            suggestions.extend(self._analyze_back_size_stock_rules())
+        
+        suggestions.extend(self._analyze_back_min_stock())
+        suggestions.extend(self._analyze_back_size_stock_rules())
         
         if posts:
             suggestions.extend(self._analyze_per_day_constraints(posts))
             suggestions.extend(self._analyze_advanced_first_constraints(posts))
             suggestions.extend(self._analyze_global_stock_targets(posts))
+        
+        suggestions = [s for s in suggestions if s.get("estimated_new_candidates", 0) > 0]
         
         message = self._format_dialog_message(suggestions)
         
@@ -329,10 +333,11 @@ class BestEffortAnalyzer:
             
             if violations:
                 min_gap_found = min(gap for _, gap in violations)
+                conservative_suggestion = max(0, min(min_gap_days - 1, min_gap_found))
                 suggestions.append({
                     "rule_name": "Aynı KisaKod Minimum Ara Gün",
                     "original_value": min_gap_days,
-                    "suggested_value": min_gap_found,
+                    "suggested_value": conservative_suggestion,
                     "estimated_new_candidates": len(violations),
                     "rule_type": "kisakod_gap"
                 })

@@ -114,21 +114,37 @@ def run_planner_with_best_effort(
         analyzer = BestEffortAnalyzer(calendar, unique_products, cfg, raw_df)
         
         emit("\n📊 Phase 1: Analyzing pool-based constraints...")
-        result = analyzer.analyze_and_suggest_relaxations(posts=None)
+        phase1_result = analyzer.analyze_and_suggest_relaxations(posts=None)
         
-        if not result["suggestions"]:
-            emit("\n📊 Phase 2: Running trial assignment to analyze assignment-based constraints...")
-            try:
-                first_candidates = filter_first_products(unique_products, cfg)
-                trial_posts = assign_first_products(calendar, first_candidates, cfg, decide=lambda msg: True)
-                
-                if trial_posts:
-                    result = analyzer.analyze_and_suggest_relaxations(posts=trial_posts)
-                    emit(f"   Trial assignment produced {len(trial_posts)} posts for analysis")
-            except Exception as e:
-                emit(f"   Trial assignment failed: {e}")
+        emit("\n📊 Phase 2: Running trial assignment to analyze assignment-based constraints...")
+        phase2_suggestions = []
+        try:
+            first_candidates = filter_first_products(unique_products, cfg)
+            trial_posts = assign_first_products(calendar, first_candidates, cfg, decide=lambda msg: True)
+            
+            if trial_posts:
+                phase2_result = analyzer.analyze_and_suggest_relaxations(posts=trial_posts)
+                phase2_suggestions = phase2_result["suggestions"]
+                emit(f"   Trial assignment produced {len(trial_posts)} posts for analysis")
+        except Exception as e:
+            emit(f"   Trial assignment failed: {e}")
         
-        suggestions = result["suggestions"]
+        all_suggestions = phase1_result["suggestions"] + phase2_suggestions
+        seen_rules = {}
+        for sug in all_suggestions:
+            rule_type = sug["rule_type"]
+            if rule_type not in seen_rules:
+                seen_rules[rule_type] = sug
+            else:
+                existing = seen_rules[rule_type]
+                if sug.get("estimated_new_candidates", 0) > existing.get("estimated_new_candidates", 0):
+                    seen_rules[rule_type] = sug
+        
+        suggestions = list(seen_rules.values())
+        suggestions.sort(key=lambda s: s.get("estimated_new_candidates", 0), reverse=True)
+        
+        result = phase1_result
+        result["suggestions"] = suggestions
         soft_violations = result["soft_violations"]
         hard_violations = result["hard_violations"]
         diagnostics = result["diagnostics"]

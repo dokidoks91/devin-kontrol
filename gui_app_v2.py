@@ -862,7 +862,7 @@ class PlannerGUI:
         def show_dialog():
             dialog = tk.Toplevel(self.root)
             dialog.title("Kriter Uyarısı")
-            dialog.geometry("700x500")
+            dialog.geometry("900x600")
             dialog.transient(self.root)
             dialog.grab_set()
             
@@ -873,7 +873,7 @@ class PlannerGUI:
                                     font=("Arial", 12, "bold"))
             title_label.pack(pady=(0, 10))
             
-            subtitle_label = ttk.Label(frame, text="Aşağıdaki esnetme önerileri ile devam etmek ister misiniz?",
+            subtitle_label = ttk.Label(frame, text="Tüm esnetilebilir kurallar listelenmiştir. Hangilerini gevşetmek istediğinizi seçin.",
                                        font=("Arial", 10))
             subtitle_label.pack(pady=(0, 10))
             
