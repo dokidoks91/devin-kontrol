@@ -55,6 +55,8 @@ class PlanValidator:
         
         self._validate_per_day_constraints()
         
+        self._validate_new_first_constraints()
+        
         self._validate_uniqueness()
         
         self._validate_seasonal()
@@ -129,29 +131,46 @@ class PlanValidator:
         ))
     
     def _validate_global_stock_targets(self):
-        """Validate global stock sum targets"""
+        """
+        Validate global stock sum targets.
+        
+        Per user requirement: Count each kisakodrenk once even if used multiple times.
+        Sum stock per unique kisakodrenk (per-color aggregation).
+        """
         global_min_first = self.cfg.get("global_min_first_stock_sum", 0)
         global_min_total = self.cfg.get("global_min_total_stock_sum", 0)
         
-        first_stock_sum = sum(p["first_product"].get("total_stock", 0) for p in self.posts)
+        unique_first_kisakodrenk = {}
+        for p in self.posts:
+            kkr = p["first_product"]["kisakodrenk"]
+            if kkr not in unique_first_kisakodrenk:
+                unique_first_kisakodrenk[kkr] = p["first_product"].get("total_stock", 0)
+        
+        first_stock_sum = sum(unique_first_kisakodrenk.values())
         
         self.results.append(ConstraintResult(
             kriter_adi="Global FIRST stok toplamı",
             beklenen_deger=f">= {global_min_first}",
             gerceklesen_deger=str(first_stock_sum),
-            durum="OK" if first_stock_sum >= global_min_first else "FAILED"
+            durum="OK" if first_stock_sum >= global_min_first else "FAILED",
+            notlar=f"{len(unique_first_kisakodrenk)} unique FIRST kisakodrenk"
         ))
         
-        total_stock_sum = first_stock_sum
+        unique_all_kisakodrenk = unique_first_kisakodrenk.copy()
         for p in self.posts:
             for bp in p.get("back_products", []):
-                total_stock_sum += bp.get("total_stock", 0)
+                kkr = bp["kisakodrenk"]
+                if kkr not in unique_all_kisakodrenk:
+                    unique_all_kisakodrenk[kkr] = bp.get("total_stock", 0)
+        
+        total_stock_sum = sum(unique_all_kisakodrenk.values())
         
         self.results.append(ConstraintResult(
             kriter_adi="Global toplam (FIRST+BACK) stok toplamı",
             beklenen_deger=f">= {global_min_total}",
             gerceklesen_deger=str(total_stock_sum),
-            durum="OK" if total_stock_sum >= global_min_total else "FAILED"
+            durum="OK" if total_stock_sum >= global_min_total else "FAILED",
+            notlar=f"{len(unique_all_kisakodrenk)} unique kisakodrenk total"
         ))
     
     def _validate_per_day_constraints(self):
@@ -195,6 +214,47 @@ class PlanValidator:
             durum="OK" if len(color_violations) == 0 else "FAILED",
             notlar=f"Uygun olmayan günler: {', '.join(color_violations)}" if color_violations else ""
         ))
+    
+    def _validate_new_first_constraints(self):
+        """Validate new FIRST-only constraints (black color limit, max KisaKod uses)"""
+        from product_helpers import is_black_color
+        
+        max_black_per_day = self.cfg.get("max_black_first_per_day", 0)
+        max_kisakod_uses = self.cfg.get("max_first_uses_per_kisakod", 0)
+        
+        if max_black_per_day > 0:
+            posts_by_day = {}
+            for p in self.posts:
+                day = p["day_name"]
+                if day not in posts_by_day:
+                    posts_by_day[day] = []
+                posts_by_day[day].append(p)
+            
+            black_violations = []
+            for day, day_posts in posts_by_day.items():
+                black_count = sum(1 for p in day_posts if is_black_color(p["first_product"].get("Renk", "")))
+                if black_count > max_black_per_day:
+                    black_violations.append(f"{day}: {black_count}")
+            
+            self.results.append(ConstraintResult(
+                kriter_adi="Günlük max SİYAH FIRST ürün sayısı",
+                beklenen_deger=f"Her gün <= {max_black_per_day}" if max_black_per_day > 0 else "Kısıt yok",
+                gerceklesen_deger=f"{len(posts_by_day) - len(black_violations)}/{len(posts_by_day)} gün uygun",
+                durum="OK" if len(black_violations) == 0 else "FAILED",
+                notlar=f"Limit aşan günler: {', '.join(black_violations)}" if black_violations else ""
+            ))
+        
+        if max_kisakod_uses > 0:
+            kisakod_counts = Counter(p["first_product"]["KisaKod"] for p in self.posts)
+            violations = {k: v for k, v in kisakod_counts.items() if v > max_kisakod_uses}
+            
+            self.results.append(ConstraintResult(
+                kriter_adi="Aynı KisaKod max FIRST kullanım sayısı",
+                beklenen_deger=f"Her KisaKod <= {max_kisakod_uses} kez" if max_kisakod_uses > 0 else "Kısıt yok",
+                gerceklesen_deger=f"{len(kisakod_counts) - len(violations)}/{len(kisakod_counts)} KisaKod uygun",
+                durum="OK" if len(violations) == 0 else "FAILED",
+                notlar=f"Limit aşan KisaKod: {', '.join([f'{k}({v})' for k, v in list(violations.items())[:5]])}" if violations else ""
+            ))
     
     def _validate_uniqueness(self):
         """Validate that each kisakodrenk is used only once (with exceptions)"""
