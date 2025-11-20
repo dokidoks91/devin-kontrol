@@ -747,12 +747,24 @@ def assign_back_products(posts, back_candidates: pd.DataFrame, cfg: dict):
                 (back_candidates["UrunCinsi"] == first_uruncinsi)
                 & (back_candidates["KisaKod"] != first_kisakod)
             ]
-            for _, prod in same_uruncinsi.iterrows():
-                kr = prod["kisakodrenk"]
-                if kr in used_back_kisakodrenk:
-                    continue
-                back_list.append(prod.to_dict())
-                used_back_kisakodrenk.add(kr)
+            
+            kisakod_order = []
+            seen_kisakod = set()
+            for kk in same_uruncinsi["KisaKod"].tolist():
+                if kk not in seen_kisakod:
+                    seen_kisakod.add(kk)
+                    kisakod_order.append(kk)
+            
+            for kk in kisakod_order:
+                group = same_uruncinsi[same_uruncinsi["KisaKod"] == kk]
+                for _, prod in group.iterrows():
+                    kr = prod["kisakodrenk"]
+                    if kr in used_back_kisakodrenk:
+                        continue
+                    back_list.append(prod.to_dict())
+                    used_back_kisakodrenk.add(kr)
+                    if len(back_list) >= 9:
+                        break
                 if len(back_list) >= 9:
                     break
 
