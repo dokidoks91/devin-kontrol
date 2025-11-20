@@ -7,8 +7,31 @@ NO numeric thresholds are hard-coded - everything must come from GUI inputs.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
-from datetime import datetime
+from typing import List, Dict, Optional, Tuple
+from datetime import datetime, timedelta
+
+
+@dataclass
+class PreferredFirstProduct:
+    """Single preferred FIRST product with optional date/time constraints"""
+    kisakodrenk: str  # e.g., "0K009SİYAH"
+    date: Optional[str] = None  # yyyy-mm-dd format, must be within plan range
+    time: Optional[str] = None  # HH:MM format, must match weekday/weekend times
+    
+    def is_valid(self) -> tuple[bool, str]:
+        """
+        Validate this preferred product entry.
+        Returns (is_valid, error_message)
+        """
+        if not self.kisakodrenk or not self.kisakodrenk.strip():
+            return True, ""  # Empty row is valid (ignored)
+        
+        if self.date and not self.time:
+            return False, "Tarih seçilen tercihli FIRST ürün için saat de seçmelisiniz."
+        if self.time and not self.date:
+            return False, "Saat seçilen tercihli FIRST ürün için tarih de seçmelisiniz."
+        
+        return True, ""
 
 
 @dataclass
@@ -94,6 +117,11 @@ class PlanConfig:
     priority_mode_front: str = "stock_then_newest"
     priority_mode_back: str = "stock_then_newest"
     
+    # ============================================================
+    # ============================================================
+    
+    preferred_first_products: List[PreferredFirstProduct] = field(default_factory=list)
+    
     def validate(self) -> List[str]:
         """
         Validate that all required fields are set.
@@ -147,6 +175,56 @@ class PlanConfig:
             errors.append("Global FIRST stok hedefi girilmedi")
         if self.global_min_total_stock_sum is None:
             errors.append("Global toplam stok hedefi girilmedi")
+        
+        for i, pref in enumerate(self.preferred_first_products, 1):
+            is_valid, error_msg = pref.is_valid()
+            if not is_valid:
+                errors.append(f"Tercihli FIRST ürün {i}: {error_msg}")
+        
+        return errors
+    
+    def validate_preferred_products_advanced(self, calendar: List[dict]) -> List[str]:
+        """
+        Advanced validation for preferred products that requires calendar context.
+        This should be called during plan generation after calendar is built.
+        
+        Args:
+            calendar: List of post slots with day_name, date, time
+        
+        Returns:
+            List of error messages (empty if valid)
+        """
+        errors = []
+        
+        date_time_slots = {}
+        for slot in calendar:
+            key = (slot.get('date'), slot.get('time'))
+            date_time_slots[key] = slot
+        
+        used_slots = {}
+        
+        for i, pref in enumerate(self.preferred_first_products, 1):
+            if not pref.kisakodrenk or not pref.kisakodrenk.strip():
+                continue
+            
+            if pref.date and pref.time:
+                slot_key = (pref.date, pref.time)
+                
+                if slot_key not in date_time_slots:
+                    errors.append(
+                        f"Tercihli FIRST ürün {i} ({pref.kisakodrenk}): "
+                        f"Tarih {pref.date} saat {pref.time} plan aralığında değil"
+                    )
+                    continue
+                
+                if slot_key in used_slots:
+                    other_idx = used_slots[slot_key]
+                    errors.append(
+                        f"Tercihli FIRST ürün {i} ({pref.kisakodrenk}) ve "
+                        f"ürün {other_idx} aynı tarih/saate atanmış: {pref.date} {pref.time}"
+                    )
+                else:
+                    used_slots[slot_key] = i
         
         return errors
     
@@ -204,6 +282,16 @@ class PlanConfig:
             
             "prioritize_by_newness": self.prioritize_by_newness,
             "prioritize_by_stock": self.prioritize_by_stock,
+            
+            "preferred_first_products": [
+                {
+                    "kisakodrenk": p.kisakodrenk,
+                    "date": p.date,
+                    "time": p.time
+                }
+                for p in self.preferred_first_products
+                if p.kisakodrenk and p.kisakodrenk.strip()
+            ],
         }
 
 

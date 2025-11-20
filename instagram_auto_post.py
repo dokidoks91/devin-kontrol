@@ -571,13 +571,103 @@ def check_per_day_constraints(day_posts, cfg: dict, is_final_check: bool = False
 # 8. FIRST ürünlerin atanması
 # ============================================================
 
+def assign_preferred_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, used_first_kisakodrenk: set):
+    """
+    Assign preferred FIRST products to their designated slots.
+    Returns (posts, updated_used_set)
+    """
+    preferred_products = cfg.get("preferred_first_products", [])
+    if not preferred_products:
+        return [], used_first_kisakodrenk
+    
+    print("\nTercihli FIRST ürünler atanıyor...")
+    posts = []
+    
+    for i, pref in enumerate(preferred_products, 1):
+        kisakodrenk = pref.get("kisakodrenk", "").strip()
+        if not kisakodrenk:
+            continue
+        
+        pref_date = pref.get("date")
+        pref_time = pref.get("time")
+        
+        matching_products = first_candidates[
+            first_candidates["kisakodrenk"].str.upper() == kisakodrenk.upper()
+        ]
+        
+        if matching_products.empty:
+            print(f"  Uyarı: Tercihli ürün {i} ({kisakodrenk}) stok dosyasında bulunamadı veya FIRST kriterlerini karşılamıyor")
+            continue
+        
+        product = matching_products.iloc[0]
+        
+        if pref_date and pref_time:
+            matching_slots = [s for s in calendar if s.get("date") == pref_date and s.get("time") == pref_time]
+            if not matching_slots:
+                print(f"  Uyarı: Tercihli ürün {i} ({kisakodrenk}) için slot bulunamadı: {pref_date} {pref_time}")
+                continue
+            
+            slot = matching_slots[0]
+            post = {
+                "day_name": slot["day_name"],
+                "time": slot["time"],
+                "date": slot.get("date"),
+                "first_product": product.to_dict(),
+                "is_preferred": True,
+                "preferred_date": pref_date,
+                "preferred_time": pref_time,
+            }
+            posts.append(post)
+            used_first_kisakodrenk.add(kisakodrenk.upper())
+            print(f"  ✓ Tercihli ürün {i} ({kisakodrenk}) atandı: {pref_date} {pref_time}")
+        else:
+            post = {
+                "day_name": None,
+                "time": None,
+                "date": None,
+                "first_product": product.to_dict(),
+                "is_preferred": True,
+                "preferred_date": None,
+                "preferred_time": None,
+                "needs_slot_assignment": True,
+            }
+            posts.append(post)
+            used_first_kisakodrenk.add(kisakodrenk.upper())
+            print(f"  ✓ Tercihli ürün {i} ({kisakodrenk}) işaretlendi (slot atanacak)")
+    
+    return posts, used_first_kisakodrenk
+
+
 def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, decide=None):
     print("\nFIRST ürünler post slotlarına atanıyor...")
 
     first_candidates = prioritize_products(first_candidates, cfg, "priority_mode_front")
-
-    posts = []
+    
     used_first_kisakodrenk = set()
+    preferred_posts, used_first_kisakodrenk = assign_preferred_first_products(
+        calendar, first_candidates, cfg, used_first_kisakodrenk
+    )
+    
+    posts_with_slots = [p for p in preferred_posts if not p.get("needs_slot_assignment")]
+    posts_needing_slots = [p for p in preferred_posts if p.get("needs_slot_assignment")]
+    
+    occupied_slots = {(p["day_name"], p["time"]) for p in posts_with_slots}
+    
+    available_slots = [s for s in calendar if (s["day_name"], s["time"]) not in occupied_slots]
+
+    posts = list(posts_with_slots)
+    
+    for pref_post in posts_needing_slots:
+        if available_slots:
+            slot = available_slots.pop(0)
+            pref_post["day_name"] = slot["day_name"]
+            pref_post["time"] = slot["time"]
+            pref_post["date"] = slot.get("date")
+            del pref_post["needs_slot_assignment"]
+            posts.append(pref_post)
+            print(f"  ✓ Tercihli ürün ({pref_post['first_product']['kisakodrenk']}) atandı: {slot['day_name']} {slot['time']}")
+        else:
+            print(f"  Uyarı: Tercihli ürün ({pref_post['first_product']['kisakodrenk']}) için boş slot bulunamadı")
     
     kisakod_last_day_index = {}
     min_gap_days = cfg.get("same_kisakod_min_gap_days", 0)
@@ -589,15 +679,15 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, d
     max_kisakod_uses = cfg.get("max_first_uses_per_kisakod", 0)
     kisakod_first_usage_count = {}
 
-    # Gün bazında slotları grupla
+    # Gün bazında slotları grupla (sadece available_slots kullan)
     day_slots = {}
-    for slot in calendar:
+    for slot in available_slots:
         day_name = slot["day_name"]
         day_slots.setdefault(day_name, []).append(slot)
 
-    # calendar sırasına göre günler
+    # available_slots sırasına göre günler
     ordered_days = []
-    for slot in calendar:
+    for slot in available_slots:
         if slot["day_name"] not in ordered_days:
             ordered_days.append(slot["day_name"])
 
@@ -1036,6 +1126,10 @@ def build_first_kriter_detay_sheet(posts, cfg: dict, raw_df: pd.DataFrame) -> pd
             "Renk": first["Renk"],
             "UrunCinsi": first["UrunCinsi"],
             "IlkUrunToplamStok": first["total_stock"],
+            "Tercihli": "Evet" if post.get("is_preferred") else "Hayır",
+            "Tercihli_Tarih": post.get("preferred_date", ""),
+            "Tercihli_Saat": post.get("preferred_time", ""),
+            "Tercihli_Durum": "SUCCESS" if post.get("is_preferred") else "N/A",
         }
         
         # 1.1 One Atilma Tarihi

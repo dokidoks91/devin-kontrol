@@ -269,6 +269,19 @@ def run_planner(
         emit("Takvim oluşturuluyor...")
         calendar = build_post_calendar(cfg)
         
+        if config_override and "preferred_first_products" in config_override:
+            from config import PlanConfig
+            temp_config = PlanConfig(**config_override)
+            pref_errors = temp_config.validate_preferred_products_advanced(calendar)
+            if pref_errors:
+                error_msg = "Tercihli FIRST ürün doğrulama hataları:\n" + "\n".join(pref_errors)
+                emit(error_msg)
+                return {
+                    "success": False,
+                    "summary_text": error_msg,
+                    "error": "Preferred FIRST products validation failed"
+                }
+        
         emit("FIRST ürün havuzu filtreleniyor...")
         first_candidates = filter_first_products(unique_products, cfg)
         

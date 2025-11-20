@@ -137,6 +137,7 @@ class PlannerGUI:
         self.create_back_tab(notebook)
         self.create_advanced_tab(notebook)
         self.create_global_tab(notebook)
+        self.create_preferred_tab(notebook)
         self.create_output_tab(notebook)
         
         button_frame = ttk.Frame(main_frame)
@@ -641,6 +642,113 @@ class PlannerGUI:
             row=row, column=0, columnspan=2, sticky=tk.W, padx=20
         )
     
+    def create_preferred_tab(self, notebook):
+        """Preferred FIRST Products tab (up to 10 rows)"""
+        scroll_frame = ScrollableFrame(notebook)
+        notebook.add(scroll_frame, text="Tercihli FIRST Ürünler")
+        frame = scroll_frame.scrollable_frame
+        
+        row = 0
+        
+        ttk.Label(frame, text="Tercihli FIRST Ürünler (İsteğe Bağlı):", font=("Arial", 10, "bold")).grid(
+            row=row, column=0, columnspan=3, sticky=tk.W, pady=5
+        )
+        row += 1
+        
+        ttk.Label(frame, text="Bu ürünler FIRST olarak plana dahil edilmeye çalışılacaktır.", font=("Arial", 9)).grid(
+            row=row, column=0, columnspan=3, sticky=tk.W, padx=20, pady=5
+        )
+        row += 1
+        
+        ttk.Label(frame, text="Tarih+Saat seçilirse: O gün o saatte kullanılır (hard constraint)", font=("Arial", 8, "italic")).grid(
+            row=row, column=0, columnspan=3, sticky=tk.W, padx=20
+        )
+        row += 1
+        
+        ttk.Label(frame, text="Sadece KisaKod+Renk girilirse: Herhangi bir günde kullanılır", font=("Arial", 8, "italic")).grid(
+            row=row, column=0, columnspan=3, sticky=tk.W, padx=20
+        )
+        row += 1
+        
+        ttk.Separator(frame, orient="horizontal").grid(
+            row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10
+        )
+        row += 1
+        
+        ttk.Label(frame, text="#", font=("Arial", 9, "bold"), width=3).grid(
+            row=row, column=0, sticky=tk.W, padx=5
+        )
+        ttk.Label(frame, text="KisaKod+Renk", font=("Arial", 9, "bold"), width=20).grid(
+            row=row, column=1, sticky=tk.W, padx=5
+        )
+        ttk.Label(frame, text="Tarih (yyyy-mm-dd)", font=("Arial", 9, "bold"), width=15).grid(
+            row=row, column=2, sticky=tk.W, padx=5
+        )
+        ttk.Label(frame, text="Saat", font=("Arial", 9, "bold"), width=10).grid(
+            row=row, column=3, sticky=tk.W, padx=5
+        )
+        row += 1
+        
+        self.preferred_entries = []
+        for i in range(10):
+            kisakodrenk_var = tk.StringVar()
+            date_var = tk.StringVar()
+            time_var = tk.StringVar()
+            
+            ttk.Label(frame, text=f"{i+1}.", font=("Arial", 9)).grid(
+                row=row, column=0, sticky=tk.W, padx=5, pady=2
+            )
+            
+            ttk.Entry(frame, textvariable=kisakodrenk_var, width=20).grid(
+                row=row, column=1, sticky=tk.W, padx=5, pady=2
+            )
+            
+            ttk.Entry(frame, textvariable=date_var, width=15).grid(
+                row=row, column=2, sticky=tk.W, padx=5, pady=2
+            )
+            
+            ttk.Combobox(frame, textvariable=time_var, width=10, state="readonly").grid(
+                row=row, column=3, sticky=tk.W, padx=5, pady=2
+            )
+            
+            self.preferred_entries.append({
+                'kisakodrenk': kisakodrenk_var,
+                'date': date_var,
+                'time': time_var,
+                'time_combo': frame.grid_slaves(row=row, column=3)[0]
+            })
+            
+            row += 1
+        
+        ttk.Separator(frame, orient="horizontal").grid(
+            row=row, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10
+        )
+        row += 1
+        
+        ttk.Label(frame, text="Önemli Notlar:", font=("Arial", 9, "bold")).grid(
+            row=row, column=0, columnspan=4, sticky=tk.W, pady=5
+        )
+        row += 1
+        
+        ttk.Label(frame, text="• Tarih seçilirse saat de seçilmelidir (zorunlu)", font=("Arial", 8)).grid(
+            row=row, column=0, columnspan=4, sticky=tk.W, padx=20
+        )
+        row += 1
+        
+        ttk.Label(frame, text="• Saat seçilirse tarih de seçilmelidir (zorunlu)", font=("Arial", 8)).grid(
+            row=row, column=0, columnspan=4, sticky=tk.W, padx=20
+        )
+        row += 1
+        
+        ttk.Label(frame, text="• Tarih plan aralığı içinde olmalıdır", font=("Arial", 8)).grid(
+            row=row, column=0, columnspan=4, sticky=tk.W, padx=20
+        )
+        row += 1
+        
+        ttk.Label(frame, text="• Tercihli ürünler tüm FIRST kriterlerine uymalıdır", font=("Arial", 8)).grid(
+            row=row, column=0, columnspan=4, sticky=tk.W, padx=20
+        )
+    
     def create_output_tab(self, notebook):
         """Output and Status tab"""
         frame = ttk.Frame(notebook, padding="10")
@@ -833,6 +941,21 @@ class PlannerGUI:
         
         config.prioritize_by_newness = self.prioritize_by_newness.get()
         config.prioritize_by_stock = self.prioritize_by_stock.get()
+        
+        from config import PreferredFirstProduct
+        for entry in self.preferred_entries:
+            kisakodrenk = entry['kisakodrenk'].get().strip()
+            date = entry['date'].get().strip()
+            time = entry['time'].get().strip()
+            
+            if kisakodrenk:
+                config.preferred_first_products.append(
+                    PreferredFirstProduct(
+                        kisakodrenk=kisakodrenk,
+                        date=date if date else None,
+                        time=time if time else None
+                    )
+                )
         
         return config
     
