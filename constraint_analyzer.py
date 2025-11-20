@@ -209,6 +209,65 @@ class ConstraintAnalyzer:
             f"daha fazla ürün kullanılabilir"
         )
     
+    def analyze_new_first_constraints(self, posts: List[Dict]) -> Tuple[List[str], List[str]]:
+        """
+        Analyze new FIRST-only constraints (black color limit, max KisaKod uses).
+        
+        Args:
+            posts: Current posts with FIRST products assigned
+            
+        Returns:
+            tuple: (violations, suggestions)
+        """
+        from product_helpers import is_black_color
+        from collections import Counter
+        
+        violations = []
+        suggestions = []
+        
+        max_black_per_day = self.cfg.get("max_black_first_per_day", 0)
+        max_kisakod_uses = self.cfg.get("max_first_uses_per_kisakod", 0)
+        
+        if max_black_per_day > 0:
+            posts_by_day = {}
+            for p in posts:
+                day = p["day_name"]
+                if day not in posts_by_day:
+                    posts_by_day[day] = []
+                posts_by_day[day].append(p)
+            
+            black_violations = []
+            for day, day_posts in posts_by_day.items():
+                black_count = sum(1 for p in day_posts if is_black_color(p["first_product"].get("Renk", "")))
+                if black_count > max_black_per_day:
+                    black_violations.append((day, black_count))
+            
+            if black_violations:
+                max_black_found = max(count for _, count in black_violations)
+                violations.append(
+                    f"Günlük SİYAH FIRST limit aşıldı: {len(black_violations)} gün limit üstünde"
+                )
+                suggestions.append(
+                    f"Günlük SİYAH FIRST limiti {max_black_per_day} → {max_black_found} artırırsanız, "
+                    f"tüm günler karşılanabilir"
+                )
+        
+        if max_kisakod_uses > 0:
+            kisakod_counts = Counter(p["first_product"]["KisaKod"] for p in posts)
+            violations_dict = {k: v for k, v in kisakod_counts.items() if v > max_kisakod_uses}
+            
+            if violations_dict:
+                max_uses_found = max(violations_dict.values())
+                violations.append(
+                    f"KisaKod FIRST kullanım limiti aşıldı: {len(violations_dict)} KisaKod limit üstünde"
+                )
+                suggestions.append(
+                    f"KisaKod FIRST kullanım limiti {max_kisakod_uses} → {max_uses_found} artırırsanız, "
+                    f"tüm KisaKod'lar karşılanabilir"
+                )
+        
+        return violations, suggestions
+    
     def format_dialog_message(self, violations: List[str], suggestions: List[str]) -> str:
         """
         Format violations and suggestions into a user-friendly dialog message.
@@ -272,6 +331,10 @@ def analyze_constraints(calendar: List[Dict], first_candidates: pd.DataFrame,
     
     if posts:
         v, s = analyzer.analyze_nos_dvm_requirements(posts)
+        all_violations.extend(v)
+        all_suggestions.extend(s)
+        
+        v, s = analyzer.analyze_new_first_constraints(posts)
         all_violations.extend(v)
         all_suggestions.extend(s)
     
