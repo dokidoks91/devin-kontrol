@@ -642,6 +642,28 @@ class PlannerGUI:
             row=row, column=0, columnspan=2, sticky=tk.W, padx=20
         )
     
+    def _attach_entry_context_menu(self, entry):
+        """Attach right-click context menu with Cut/Copy/Paste/Select All to Entry widget"""
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label="Kes\tCtrl+X", command=lambda: entry.event_generate("<<Cut>>"))
+        menu.add_command(label="Kopyala\tCtrl+C", command=lambda: entry.event_generate("<<Copy>>"))
+        menu.add_command(label="Yapıştır\tCtrl+V", command=lambda: entry.event_generate("<<Paste>>"))
+        menu.add_separator()
+        menu.add_command(label="Tümünü Seç\tCtrl+A", command=lambda: (entry.select_range(0, 'end'), entry.icursor('end')))
+        
+        def show_menu(event):
+            entry.focus_set()
+            try:
+                menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                menu.grab_release()
+        
+        entry.bind("<Button-3>", show_menu)
+        entry.bind("<Control-a>", lambda e: (entry.select_range(0, 'end'), entry.icursor('end'), 'break'))
+        entry.bind("<Control-Insert>", lambda e: (entry.event_generate("<<Copy>>"), 'break'))
+        entry.bind("<Shift-Insert>", lambda e: (entry.event_generate("<<Paste>>"), 'break'))
+        entry.bind("<Shift-Delete>", lambda e: (entry.event_generate("<<Cut>>"), 'break'))
+    
     def create_preferred_tab(self, notebook):
         """Preferred FIRST Products tab (up to 10 rows)"""
         scroll_frame = ScrollableFrame(notebook)
@@ -703,9 +725,9 @@ class PlannerGUI:
                 row=row, column=0, sticky=tk.W, padx=5, pady=2
             )
             
-            ttk.Entry(frame, textvariable=kisakodrenk_var, width=20).grid(
-                row=row, column=1, sticky=tk.W, padx=5, pady=2
-            )
+            kisakodrenk_entry = ttk.Entry(frame, textvariable=kisakodrenk_var, width=20)
+            kisakodrenk_entry.grid(row=row, column=1, sticky=tk.W, padx=5, pady=2)
+            self._attach_entry_context_menu(kisakodrenk_entry)
             
             gun_combo = ttk.Combobox(frame, textvariable=gun_var, width=15, state="readonly", values=gun_options)
             gun_combo.grid(row=row, column=2, sticky=tk.W, padx=5, pady=2)
@@ -731,6 +753,7 @@ class PlannerGUI:
             
             self.preferred_entries.append({
                 'kisakodrenk': kisakodrenk_var,
+                'kisakodrenk_entry': kisakodrenk_entry,
                 'gun': gun_var,
                 'time': time_var,
                 'gun_combo': gun_combo,
