@@ -165,7 +165,7 @@ def run_planner(
         output_excel = os.path.join(output_dir, "instagram_haftalik_plan.xlsx")
         output_md = os.path.join(output_dir, "instagram_haftalik_plan.md")
         
-        plan_df = export_to_excel(posts, cfg, validation_df)
+        plan_df = export_to_excel(posts, cfg, raw_df, validation_df)
         
         emit("Markdown çıktısı oluşturuluyor...")
         export_to_markdown(posts, cfg)

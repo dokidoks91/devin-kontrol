@@ -921,7 +921,333 @@ def check_weekly_nos_dvm(posts, cfg: dict, first_candidates: pd.DataFrame, calen
 # 11. Dışa aktarma ve özet
 # ============================================================
 
-def export_to_excel(posts, cfg: dict, validation_df=None) -> pd.DataFrame:
+def build_first_kriter_detay_sheet(posts, cfg: dict, raw_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build FIRST_Kriter_Detay sheet with detailed criteria for each FIRST product.
+    One row per FIRST product (per post).
+    """
+    print("\nFIRST_Kriter_Detay sheet oluşturuluyor...")
+    
+    rows = []
+    
+    # Compute One Atilma Tarihi threshold
+    one_atilma_threshold = None
+    if cfg.get("one_atilma_reference_date") and cfg.get("one_atilma_min_days"):
+        try:
+            ref_date = datetime.strptime(cfg["one_atilma_reference_date"], "%Y-%m-%d")
+            min_days = int(cfg["one_atilma_min_days"])
+            one_atilma_threshold = ref_date - timedelta(days=min_days)
+        except:
+            pass
+    
+    for post in posts:
+        first = post["first_product"]
+        kisakodrenk = first["kisakodrenk"]
+        
+        row = {
+            "PostGunu": post["day_name"],
+            "PostSaati": post["time"],
+            "KisaKod": first["KisaKod"],
+            "Renk": first["Renk"],
+            "UrunCinsi": first["UrunCinsi"],
+            "IlkUrunToplamStok": first["total_stock"],
+        }
+        
+        # 1.1 One Atilma Tarihi
+        if one_atilma_threshold:
+            row["Beklenen_OneAtilmaTarihi"] = one_atilma_threshold.strftime("%Y-%m-%d")
+            
+            one_atilma_val = first.get("One Atilma Tarihi")
+            if one_atilma_val is None or pd.isna(one_atilma_val):
+                row["Gerceklesen_OneAtilma"] = "Atılmamış"
+                row["OneAtilma_Kriter_Status"] = "OK"
+            else:
+                s = str(one_atilma_val).strip().upper()
+                if s in ("", "NAN", "NA", "#N/A", "NAT", "#YOK"):
+                    row["Gerceklesen_OneAtilma"] = "Atılmamış"
+                    row["OneAtilma_Kriter_Status"] = "OK"
+                else:
+                    try:
+                        one_date = pd.to_datetime(one_atilma_val, dayfirst=True, errors='coerce')
+                        if pd.isna(one_date):
+                            row["Gerceklesen_OneAtilma"] = "Atılmamış"
+                            row["OneAtilma_Kriter_Status"] = "OK"
+                        else:
+                            days_diff = (one_atilma_threshold - one_date).days
+                            row["Gerceklesen_OneAtilma"] = f"{one_date.strftime('%Y-%m-%d')} ({days_diff} gün önce)"
+                            row["OneAtilma_Kriter_Status"] = "OK" if one_date < one_atilma_threshold else "FAILED"
+                    except:
+                        row["Gerceklesen_OneAtilma"] = "Atılmamış"
+                        row["OneAtilma_Kriter_Status"] = "OK"
+        else:
+            row["Beklenen_OneAtilmaTarihi"] = "N/A"
+            row["Gerceklesen_OneAtilma"] = "N/A"
+            row["OneAtilma_Kriter_Status"] = "N/A"
+        
+        min_stock_first = cfg.get("min_total_stock_front", 0)
+        row["Beklenen_MinToplamStok_FIRST"] = min_stock_first
+        row["Gerceklesen_ToplamStok_FIRST"] = first["total_stock"]
+        row["ToplamStok_Status"] = "OK" if first["total_stock"] >= min_stock_first else "FAILED"
+        
+        product_sizes = raw_df[raw_df["kisakodrenk"] == kisakodrenk]
+        beden_sayisi = len(product_sizes)
+        row["Beden_Sayisi"] = beden_sayisi
+        
+        size_rules = cfg.get("front_size_stock_rules", {})
+        applicable_rule = None
+        
+        if isinstance(size_rules, dict):
+            for size_count in sorted(size_rules.keys()):
+                if beden_sayisi >= size_count:
+                    applicable_rule = size_rules[size_count]
+        elif isinstance(size_rules, list):
+            for item in size_rules:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    size_count, rule = item
+                    if beden_sayisi >= size_count:
+                        applicable_rule = rule
+        
+        if applicable_rule and isinstance(applicable_rule, (list, tuple)) and len(applicable_rule) == 2:
+            min_sizes_with_stock, min_stock_per_size = applicable_rule
+            row["Beklenen_Min_Beden_Adedi"] = min_sizes_with_stock
+            row["Beklenen_Min_Stok_Per_Beden"] = min_stock_per_size
+            
+            sizes_with_enough_stock = product_sizes[product_sizes["ToplamStok"] >= min_stock_per_size]
+            actual_sizes_count = len(sizes_with_enough_stock)
+            row["Gerceklesen_Min_Beden_Adedi"] = actual_sizes_count
+            
+            if len(sizes_with_enough_stock) > 0:
+                row["Gerceklesen_Min_Stok_Per_Beden"] = sizes_with_enough_stock["ToplamStok"].min()
+            else:
+                row["Gerceklesen_Min_Stok_Per_Beden"] = 0
+            
+            row["BedenStok_Kriter_Status"] = "OK" if actual_sizes_count >= min_sizes_with_stock else "FAILED"
+        else:
+            row["Beklenen_Min_Beden_Adedi"] = "N/A"
+            row["Beklenen_Min_Stok_Per_Beden"] = "N/A"
+            row["Gerceklesen_Min_Beden_Adedi"] = "N/A"
+            row["Gerceklesen_Min_Stok_Per_Beden"] = "N/A"
+            row["BedenStok_Kriter_Status"] = "N/A"
+        
+        row["Nos"] = "Evet" if first.get("Nos", "") == "E" else ""
+        row["DVM"] = "Evet" if first.get("DVM", "") == "DVM" else ""
+        
+        cekim_val = first.get("Cekim", "")
+        if cekim_val == "EVET":
+            row["Cekim"] = "EVET"
+        elif cekim_val in ("NA", "#YOK"):
+            row["Cekim"] = cekim_val
+        else:
+            row["Cekim"] = ""
+        
+        sezon = first.get("Sezon", "")
+        use_yazlik = cfg.get("use_yazlik_front", True)
+        use_kislik = cfg.get("use_kislik_front", True)
+        if use_yazlik and use_kislik:
+            row["Mevsim_Filtre_Sonucu"] = "Yazlık/Kışlık"
+        elif use_yazlik:
+            row["Mevsim_Filtre_Sonucu"] = "Yazlık"
+        elif use_kislik:
+            row["Mevsim_Filtre_Sonucu"] = "Kışlık"
+        else:
+            row["Mevsim_Filtre_Sonucu"] = "N/A"
+        
+        rows.append(row)
+    
+    return pd.DataFrame(rows)
+
+
+def build_global_kriter_ozet_sheet(posts, cfg: dict) -> pd.DataFrame:
+    """
+    Build Global_Kriter_Ozet sheet with global and advanced rules.
+    One row per rule.
+    """
+    print("\nGlobal_Kriter_Ozet sheet oluşturuluyor...")
+    
+    rows = []
+    
+    posts_by_day = {}
+    for post in posts:
+        day_name = post["day_name"]
+        posts_by_day.setdefault(day_name, []).append(post)
+    
+    
+    max_consecutive_uruncinsi_config = cfg.get("max_same_uruncinsi_in_a_row_per_day", 0)
+    max_consecutive_uruncinsi_actual = 0
+    for day_posts in posts_by_day.values():
+        consecutive = 1
+        max_in_day = 1
+        for i in range(1, len(day_posts)):
+            if day_posts[i]["first_product"]["UrunCinsi"] == day_posts[i-1]["first_product"]["UrunCinsi"]:
+                consecutive += 1
+                max_in_day = max(max_in_day, consecutive)
+            else:
+                consecutive = 1
+        max_consecutive_uruncinsi_actual = max(max_consecutive_uruncinsi_actual, max_in_day)
+    
+    rows.append({
+        "Kriter_adi": "Ayni_UrunCinsi_Ardisik_Limit",
+        "Beklenen": max_consecutive_uruncinsi_config if max_consecutive_uruncinsi_config > 0 else "Sınırsız",
+        "Gerceklesen": max_consecutive_uruncinsi_actual,
+        "Status": "OK" if max_consecutive_uruncinsi_config == 0 or max_consecutive_uruncinsi_actual <= max_consecutive_uruncinsi_config else "FAILED"
+    })
+    
+    min_distinct_uruncinsi_config = cfg.get("min_distinct_uruncinsi_per_day", 0)
+    min_distinct_uruncinsi_actual = float('inf')
+    for day_posts in posts_by_day.values():
+        distinct_count = len({p["first_product"]["UrunCinsi"] for p in day_posts})
+        min_distinct_uruncinsi_actual = min(min_distinct_uruncinsi_actual, distinct_count)
+    if min_distinct_uruncinsi_actual == float('inf'):
+        min_distinct_uruncinsi_actual = 0
+    
+    rows.append({
+        "Kriter_adi": "Min_Farkli_UrunCinsi_Gunluk",
+        "Beklenen": min_distinct_uruncinsi_config,
+        "Gerceklesen": min_distinct_uruncinsi_actual,
+        "Status": "OK" if min_distinct_uruncinsi_actual >= min_distinct_uruncinsi_config else "FAILED"
+    })
+    
+    max_consecutive_color_config = cfg.get("max_same_color_in_a_row_per_day", 0)
+    max_consecutive_color_actual = 0
+    for day_posts in posts_by_day.values():
+        consecutive = 1
+        max_in_day = 1
+        for i in range(1, len(day_posts)):
+            if day_posts[i]["first_product"]["Renk"] == day_posts[i-1]["first_product"]["Renk"]:
+                consecutive += 1
+                max_in_day = max(max_in_day, consecutive)
+            else:
+                consecutive = 1
+        max_consecutive_color_actual = max(max_consecutive_color_actual, max_in_day)
+    
+    rows.append({
+        "Kriter_adi": "Ayni_Renk_Ardisik_Limit",
+        "Beklenen": max_consecutive_color_config if max_consecutive_color_config > 0 else "Sınırsız",
+        "Gerceklesen": max_consecutive_color_actual,
+        "Status": "OK" if max_consecutive_color_config == 0 or max_consecutive_color_actual <= max_consecutive_color_config else "FAILED"
+    })
+    
+    min_distinct_color_config = cfg.get("min_distinct_color_per_day", 0)
+    min_distinct_color_actual = float('inf')
+    for day_posts in posts_by_day.values():
+        distinct_count = len({p["first_product"]["Renk"] for p in day_posts})
+        min_distinct_color_actual = min(min_distinct_color_actual, distinct_count)
+    if min_distinct_color_actual == float('inf'):
+        min_distinct_color_actual = 0
+    
+    rows.append({
+        "Kriter_adi": "Min_Farkli_Renk_Gunluk",
+        "Beklenen": min_distinct_color_config,
+        "Gerceklesen": min_distinct_color_actual,
+        "Status": "OK" if min_distinct_color_actual >= min_distinct_color_config else "FAILED"
+    })
+    
+    
+    min_gap_config = cfg.get("same_kisakod_min_gap_days", 0)
+    kisakod_day_indices = {}
+    day_order = []
+    for post in posts:
+        if post["day_name"] not in day_order:
+            day_order.append(post["day_name"])
+    
+    min_gap_actual = float('inf')
+    for i, post in enumerate(posts):
+        kisakod = post["first_product"]["KisaKod"]
+        day_idx = day_order.index(post["day_name"])
+        
+        if kisakod in kisakod_day_indices:
+            last_day_idx = kisakod_day_indices[kisakod]
+            gap = day_idx - last_day_idx
+            min_gap_actual = min(min_gap_actual, gap)
+        
+        kisakod_day_indices[kisakod] = day_idx
+    
+    if min_gap_actual == float('inf'):
+        min_gap_actual = "N/A"
+        gap_status = "N/A"
+    else:
+        gap_status = "OK" if min_gap_actual >= min_gap_config else "FAILED"
+    
+    rows.append({
+        "Kriter_adi": "Ayni_KisaKod_Min_Ara_Gun",
+        "Beklenen": min_gap_config,
+        "Gerceklesen": min_gap_actual,
+        "Status": gap_status
+    })
+    
+    max_kisakod_uses_config = cfg.get("max_first_uses_per_kisakod", 0)
+    kisakod_usage_count = Counter(p["first_product"]["KisaKod"] for p in posts)
+    max_kisakod_uses_actual = max(kisakod_usage_count.values()) if kisakod_usage_count else 0
+    
+    rows.append({
+        "Kriter_adi": "Ayni_KisaKod_MAX_FIRST_Kullanim",
+        "Beklenen": max_kisakod_uses_config if max_kisakod_uses_config > 0 else "Sınırsız",
+        "Gerceklesen": max_kisakod_uses_actual,
+        "Status": "OK" if max_kisakod_uses_config == 0 or max_kisakod_uses_actual <= max_kisakod_uses_config else "FAILED"
+    })
+    
+    from product_helpers import is_black_color
+    max_black_config = cfg.get("max_black_first_per_day", 0)
+    max_black_actual = 0
+    for day_posts in posts_by_day.values():
+        black_count = sum(1 for p in day_posts if is_black_color(p["first_product"].get("Renk", "")))
+        max_black_actual = max(max_black_actual, black_count)
+    
+    rows.append({
+        "Kriter_adi": "FIRST_Siyah_Gunluk_Limit",
+        "Beklenen": max_black_config if max_black_config > 0 else "Sınırsız",
+        "Gerceklesen": max_black_actual,
+        "Status": "OK" if max_black_config == 0 or max_black_actual <= max_black_config else "FAILED"
+    })
+    
+    
+    first_stock_target = cfg.get("global_min_first_stock_sum", 0)
+    unique_first_kisakodrenk = {p["first_product"]["kisakodrenk"]: p["first_product"]["total_stock"] for p in posts}
+    first_stock_actual = sum(unique_first_kisakodrenk.values())
+    
+    rows.append({
+        "Kriter_adi": "First_Stok_Hedefi",
+        "Beklenen": first_stock_target,
+        "Gerceklesen": first_stock_actual,
+        "Status": "OK" if first_stock_actual >= first_stock_target else "FAILED"
+    })
+    
+    total_stock_target = cfg.get("global_min_total_stock_sum", 0)
+    unique_all_kisakodrenk = unique_first_kisakodrenk.copy()
+    for post in posts:
+        for bp in post.get("back_products", []):
+            if bp["kisakodrenk"] not in unique_all_kisakodrenk:
+                unique_all_kisakodrenk[bp["kisakodrenk"]] = bp["total_stock"]
+    total_stock_actual = sum(unique_all_kisakodrenk.values())
+    
+    rows.append({
+        "Kriter_adi": "Tum_Urunler_Stok_Hedefi",
+        "Beklenen": total_stock_target,
+        "Gerceklesen": total_stock_actual,
+        "Status": "OK" if total_stock_actual >= total_stock_target else "FAILED"
+    })
+    
+    prioritize_newness = cfg.get("prioritize_by_newness", False)
+    prioritize_stock = cfg.get("prioritize_by_stock", False)
+    
+    if prioritize_newness and not prioritize_stock:
+        expected_priority = "Yeni > Stok"
+    elif prioritize_stock and not prioritize_newness:
+        expected_priority = "Stok > Yeni"
+    else:
+        expected_priority = "Serbest"
+    
+    rows.append({
+        "Kriter_adi": "Global_Onceliklendirme",
+        "Beklenen": expected_priority,
+        "Gerceklesen": expected_priority,
+        "Status": "OK"
+    })
+    
+    return pd.DataFrame(rows)
+
+
+def export_to_excel(posts, cfg: dict, raw_df: pd.DataFrame = None, validation_df=None) -> pd.DataFrame:
     print("\nExcel çıktısı oluşturuluyor...")
 
     rows = []
@@ -965,14 +1291,31 @@ def export_to_excel(posts, cfg: dict, validation_df=None) -> pd.DataFrame:
 
     output_path = "instagram_haftalik_plan.xlsx"
     
-    if validation_df is not None:
-        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-            df.to_excel(writer, sheet_name="Plan", index=False)
-            validation_df.to_excel(writer, sheet_name="Kriter_Ozet", index=False)
-        print(f"Excel dosyası yazıldı: {output_path} (Plan: {len(df)} satır, Kriter_Ozet: {len(validation_df)} satır)")
-    else:
-        df.to_excel(output_path, index=False, engine="openpyxl")
-        print(f"Excel dosyası yazıldı: {output_path} (toplam satır: {len(df)})")
+    first_kriter_df = None
+    global_kriter_df = None
+    
+    if raw_df is not None:
+        first_kriter_df = build_first_kriter_detay_sheet(posts, cfg, raw_df)
+        global_kriter_df = build_global_kriter_ozet_sheet(posts, cfg)
+    
+    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="Plan", index=False)
+        
+        if first_kriter_df is not None:
+            first_kriter_df.to_excel(writer, sheet_name="FIRST_Kriter_Detay", index=False)
+        
+        if global_kriter_df is not None:
+            global_kriter_df.to_excel(writer, sheet_name="Global_Kriter_Ozet", index=False)
+        
+        if validation_df is not None:
+            validation_df.to_excel(writer, sheet_name="Kriter_Ozet_Old", index=False)
+    
+    print(f"Excel dosyası yazıldı: {output_path}")
+    print(f"  - Plan: {len(df)} satır")
+    if first_kriter_df is not None:
+        print(f"  - FIRST_Kriter_Detay: {len(first_kriter_df)} satır")
+    if global_kriter_df is not None:
+        print(f"  - Global_Kriter_Ozet: {len(global_kriter_df)} satır")
     
     return df
 
@@ -1096,7 +1439,7 @@ def main():
 
         posts = assign_back_products(posts, back_candidates, cfg)
 
-        plan_df = export_to_excel(posts, cfg)
+        plan_df = export_to_excel(posts, cfg, raw_df)
         export_to_markdown(posts, cfg)
         print_summary(posts, cfg, first_candidates, back_candidates)
 
