@@ -87,13 +87,24 @@ df["kisakodrenk"] = df["KisaKod"] + df["Renk"]
 #### 3.5 One Atilma Tarihi ✓ FIXED
 
 **Requirement:** #N/A or empty → always allowed; Date must be older than (reference_date - X days)  
-**Implementation:** instagram_auto_post.py:317-335  
+**Implementation:** instagram_auto_post.py:330-364 (filter), 997-1140 (report)  
 **Status:** ✗ **MAJOR BUG** → ✓ FIXED  
-**Issue:** Did not use pd.isna() to properly detect NaT values  
-**Fix:** Commit 8584dd3 - Added pd.isna() check and normalized string handling  
-**Impact:** NaT values might not have been properly recognized as "never posted"
+**Issue 1:** Did not use pd.isna() to properly detect NaT values  
+**Fix 1:** Commit 8584dd3 - Added pd.isna() check and normalized string handling  
+**Issue 2:** Date parsing failed for Turkish format (dd.MM.yyyy), causing report columns to show N/A  
+**Fix 2:** Commit 7ba4135 - Implemented robust date parsing supporting both yyyy-mm-dd and dd.MM.yyyy formats  
+**Impact:** NaT values might not have been properly recognized as "never posted"; report columns always showed N/A
 
-**Note:** Reference date is hardcoded to "2025-02-01" (line 47). Consider making this dynamic or user-configurable in future.
+**Current Behavior:**
+- Filter logic (check_one_atilma_tarihi_front): Uses explicit format matching to parse reference date with both %Y-%m-%d and %d.%m.%Y formats
+- Report logic (build_first_kriter_detay_sheet): Generates three columns for each FIRST product:
+  - **Beklenen_OneAtilmaTarihi**: Threshold date (reference_date - X days) when configured, "N/A" when not configured
+  - **Gerceklesen_OneAtilma**: "Atılmamış" if never used as FIRST, or actual date with days difference when used
+  - **OneAtilma_Kriter_Status**: "OK" if never used or older than threshold, "FAILED" if used recently, "N/A" when not configured
+- Removed fallback defaults in config.to_dict() to align with "no defaults" policy
+- Products with #N/A are prioritized first (never-used products selected before date-filtered products)
+
+**Note:** Reference date and minimum days are now fully user-configurable via GUI (no hard-coded defaults).
 
 #### 3.6 Weekly Minimum NOS ✓ PASS
 
