@@ -208,23 +208,32 @@ class PlanConfig:
         used_slots = {}
         
         for i, pref in enumerate(self.preferred_first_products, 1):
-            if not pref.kisakodrenk or not pref.kisakodrenk.strip():
+            if isinstance(pref, dict):
+                kisakodrenk = (pref.get("kisakodrenk") or "").strip()
+                gun = (pref.get("gun") or "").strip()
+                time = (pref.get("time") or "").strip()
+            else:
+                kisakodrenk = (pref.kisakodrenk or "").strip()
+                gun = (pref.gun or "").strip()
+                time = (pref.time or "").strip()
+            
+            if not kisakodrenk:
                 continue
             
-            if pref.gun and pref.gun not in available_days:
+            if gun and gun not in available_days:
                 errors.append(
-                    f"Tercihli FIRST ürün {i} ({pref.kisakodrenk}): "
+                    f"Tercihli FIRST ürün {i} ({kisakodrenk}): "
                     f"Tercihli First ürün için seçilen gün planda yok. başka gün seçer misin."
                 )
                 continue
             
-            if pref.gun and pref.time:
-                slot_key = (pref.gun, pref.time)
+            if gun and time:
+                slot_key = (gun, time)
                 
                 if slot_key not in gun_time_slots:
                     errors.append(
-                        f"Tercihli FIRST ürün {i} ({pref.kisakodrenk}): "
-                        f"Gün {pref.gun} saat {pref.time} plan aralığında değil"
+                        f"Tercihli FIRST ürün {i} ({kisakodrenk}): "
+                        f"Gün {gun} saat {time} plan aralığında değil"
                     )
                     continue
                 
@@ -232,7 +241,7 @@ class PlanConfig:
                     other_idx = used_slots[slot_key]
                     errors.append(
                         f"Bu tarih ve saatte iki tercihli FIRST ürünü yerleştirilemez. Lütfen düzeltin. "
-                        f"(Ürün {i}: {pref.kisakodrenk} ve Ürün {other_idx} - {pref.gun} {pref.time})"
+                        f"(Ürün {i}: {kisakodrenk} ve Ürün {other_idx} - {gun} {time})"
                     )
                 else:
                     used_slots[slot_key] = i
