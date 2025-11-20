@@ -1229,18 +1229,50 @@ class PlannerGUI:
             self.prioritize_by_newness.set(cfg_dict['prioritize_by_newness'])
         if 'prioritize_by_stock' in cfg_dict:
             self.prioritize_by_stock.set(cfg_dict['prioritize_by_stock'])
+        
+        if 'preferred_first_products' in cfg_dict:
+            preferred_list = cfg_dict['preferred_first_products']
+            if isinstance(preferred_list, list):
+                for i, pref in enumerate(preferred_list):
+                    if i < len(self.preferred_entries):
+                        entry = self.preferred_entries[i]
+                        
+                        kisakodrenk = pref.get('kisakodrenk', '')
+                        gun = pref.get('gun', '')
+                        time = pref.get('time', '')
+                        
+                        entry['kisakodrenk'].set(kisakodrenk)
+                        entry['gun'].set(gun)
+                        entry['time'].set(time)
+                        
+                        gun_combo = entry.get('gun_combo')
+                        time_combo = entry.get('time_combo')
+                        
+                        if gun_combo and time_combo:
+                            if gun:
+                                weekday_times = ["", "09:00", "10:30", "11:30", "12:30", "13:30", "14:30", "15:30", "16:30", "17:30", "19:30", "21:00", "22:30"]
+                                weekend_times = ["", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:30", "19:30", "21:00"]
+                                
+                                if gun in ["Cumartesi", "Pazar"]:
+                                    time_combo['values'] = weekend_times
+                                else:
+                                    time_combo['values'] = weekday_times
+                                time_combo['state'] = 'readonly'
+                            else:
+                                time_combo['values'] = [""]
+                                time_combo['state'] = 'disabled'
     
     def reset_settings(self):
         """Reset all settings to default values and clear saved settings"""
+        if self.is_running:
+            messagebox.showwarning("Uyarı", "Plan oluşturma sürerken ayarları sıfırlayamazsınız.")
+            return
+        
         result = messagebox.askyesno(
             "Ayarları Sıfırla",
             "Tüm ayarlar silinecek ve varsayılan değerlere dönülecek.\nDevam etmek istiyor musunuz?"
         )
         if result:
-            settings_file = self.get_settings_file_path()
-            if os.path.exists(settings_file):
-                os.remove(settings_file)
-            
             self.excel_path.set("")
             self.start_day.set("Pazartesi")
             self.num_days.set(7)
@@ -1285,6 +1317,24 @@ class PlannerGUI:
             
             self.prioritize_by_newness.set(False)
             self.prioritize_by_stock.set(False)
+            
+            for entry in getattr(self, "preferred_entries", []):
+                entry['kisakodrenk'].set("")
+                entry['gun'].set("")
+                entry['time'].set("")
+                
+                gun_combo = entry.get('gun_combo')
+                time_combo = entry.get('time_combo')
+                if gun_combo:
+                    gun_combo.set("")
+                if time_combo:
+                    time_combo['values'] = [""]
+                    time_combo.set("")
+                    time_combo['state'] = 'disabled'
+            
+            self.clear_output()
+            
+            self.auto_save_settings()
             
             messagebox.showinfo("Başarılı", "Tüm ayarlar sıfırlandı.")
     
