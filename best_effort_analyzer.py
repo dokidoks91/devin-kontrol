@@ -73,33 +73,58 @@ class BestEffortAnalyzer:
             - rule_type: str (e.g., "FIRST_stock", "per_day_constraint")
         """
         suggestions = []
+        soft_violations = []
+        hard_violations = []
+        diagnostics = {}
         
         first_candidates = filter_first_products(self.unique_products, self.cfg)
         required_first = len(self.calendar)
         
+        diagnostics["first_pool_size"] = len(first_candidates)
+        diagnostics["required_first"] = required_first
+        
         if len(first_candidates) < required_first:
+            soft_violations.append({
+                "rule_name": "FIRST Pool Size",
+                "reason": f"Not enough FIRST candidates: {len(first_candidates)} < {required_first}",
+                "observed": len(first_candidates),
+                "expected": required_first,
+                "is_relaxable": True
+            })
             suggestions.extend(self._analyze_first_min_stock())
-            
             suggestions.extend(self._analyze_first_size_stock_rules())
         
         back_candidates = filter_back_products(self.unique_products, self.cfg)
         required_back = len(self.calendar) * 9
         
+        diagnostics["back_pool_size"] = len(back_candidates)
+        diagnostics["required_back"] = required_back
+        
         if len(back_candidates) < required_back:
+            soft_violations.append({
+                "rule_name": "BACK Pool Size",
+                "reason": f"Not enough BACK candidates: {len(back_candidates)} < {required_back}",
+                "observed": len(back_candidates),
+                "expected": required_back,
+                "is_relaxable": True
+            })
             suggestions.extend(self._analyze_back_min_stock())
-            
             suggestions.extend(self._analyze_back_size_stock_rules())
         
         if posts:
             suggestions.extend(self._analyze_per_day_constraints(posts))
-            
             suggestions.extend(self._analyze_advanced_first_constraints(posts))
-            
             suggestions.extend(self._analyze_global_stock_targets(posts))
         
         message = self._format_dialog_message(suggestions)
         
-        return suggestions, message
+        return {
+            "suggestions": suggestions,
+            "soft_violations": soft_violations,
+            "hard_violations": hard_violations,
+            "diagnostics": diagnostics,
+            "message": message
+        }
     
     def _analyze_first_min_stock(self) -> List[Dict]:
         """Analyze FIRST min total stock constraint"""

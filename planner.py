@@ -104,14 +104,63 @@ def run_planner_with_best_effort(
         unique_products = build_unique_products(raw_df)
         calendar = build_post_calendar(cfg)
         
-        # Analyze and compute relaxation suggestions
+        # Analyze and compute relaxation suggestions (Two-phase approach)
         from best_effort_analyzer import BestEffortAnalyzer
         
         analyzer = BestEffortAnalyzer(calendar, unique_products, cfg, raw_df)
-        suggestions, dialog_message = analyzer.analyze_and_suggest_relaxations()
+        
+        emit("\n📊 Phase 1: Analyzing pool-based constraints...")
+        result = analyzer.analyze_and_suggest_relaxations(posts=None)
+        
+        if not result["suggestions"]:
+            emit("\n📊 Phase 2: Running trial assignment to analyze assignment-based constraints...")
+            try:
+                first_candidates = filter_first_products(unique_products, cfg)
+                trial_posts = assign_first_products(calendar, first_candidates, cfg, decide=lambda msg: True)
+                
+                if trial_posts:
+                    result = analyzer.analyze_and_suggest_relaxations(posts=trial_posts)
+                    emit(f"   Trial assignment produced {len(trial_posts)} posts for analysis")
+            except Exception as e:
+                emit(f"   Trial assignment failed: {e}")
+        
+        suggestions = result["suggestions"]
+        soft_violations = result["soft_violations"]
+        hard_violations = result["hard_violations"]
+        diagnostics = result["diagnostics"]
+        dialog_message = result["message"]
+        
+        emit("\n📋 Constraint Diagnostics:")
+        emit(f"   FIRST pool: {diagnostics.get('first_pool_size', 0)} candidates (need {diagnostics.get('required_first', 0)})")
+        emit(f"   BACK pool: {diagnostics.get('back_pool_size', 0)} candidates (need {diagnostics.get('required_back', 0)})")
+        emit(f"   Soft violations: {len(soft_violations)}")
+        emit(f"   Hard violations: {len(hard_violations)}")
+        emit(f"   Relaxation suggestions: {len(suggestions)}")
+        
+        if not suggestions and hard_violations:
+            hard_rules_list = "\n".join([f"  - {v['rule_name']}: {v['reason']}" for v in hard_violations])
+            error_msg = f"Plan oluşturulamadı - sadece esnetilemez (hard) kurallar ihlal edildi:\n\n{hard_rules_list}\n\nBu kurallar esnetilemiyor. Lütfen ayarları manuel olarak düzeltin."
+            emit(f"\n❌ {error_msg}")
+            return {
+                "success": False,
+                "summary_text": error_msg,
+                "error": "Only hard rules violated",
+                "relaxations_applied": []
+            }
+        
+        if not suggestions and soft_violations:
+            soft_rules_list = "\n".join([f"  - {v['rule_name']}: {v['reason']}" for v in soft_violations])
+            error_msg = f"Plan oluşturulamadı - esnetilebilir kurallar ihlal edildi ancak öneri üretilemedi:\n\n{soft_rules_list}\n\nLütfen ayarları manuel olarak düzeltin."
+            emit(f"\n⚠️ {error_msg}")
+            return {
+                "success": False,
+                "summary_text": error_msg,
+                "error": "Soft rules violated but no suggestions",
+                "relaxations_applied": []
+            }
         
         if not suggestions:
-            emit("\n❌ No relaxation suggestions available - cannot proceed")
+            emit("\n❌ Plan oluşturulamadı ancak ihlal edilen kural tespit edilemedi")
             return {
                 "success": False,
                 "summary_text": "Plan oluşturulamadı ve esnetme önerisi bulunamadı.",
