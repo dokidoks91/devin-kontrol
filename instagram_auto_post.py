@@ -431,19 +431,43 @@ def filter_back_products(unique_products: pd.DataFrame, cfg: dict) -> pd.DataFra
 # ============================================================
 
 def prioritize_products(products: pd.DataFrame, cfg: dict, mode_key: str) -> pd.DataFrame:
-    mode = cfg.get(mode_key, "stock_then_newest")
-    if mode == "stock_then_newest":
-        return products.sort_values(
-            by=["total_stock", "season_digit", "season_seq"],
-            ascending=[False, False, False],
-        ).reset_index(drop=True)
-    elif mode == "newest_then_stock":
+    """
+    Prioritize products based on global prioritization settings.
+    
+    Uses new prioritization switches:
+    - prioritize_by_newness: sort by year digit + sequence number
+    - prioritize_by_stock: sort by total stock (per-kisakodrenk)
+    
+    If only one is selected, use that as primary sort key.
+    If both or neither selected, use legacy mode_key behavior.
+    """
+    prioritize_newness = cfg.get("prioritize_by_newness", False)
+    prioritize_stock = cfg.get("prioritize_by_stock", False)
+    
+    if prioritize_newness and not prioritize_stock:
         return products.sort_values(
             by=["season_digit", "season_seq", "total_stock"],
             ascending=[False, False, False],
         ).reset_index(drop=True)
+    elif prioritize_stock and not prioritize_newness:
+        return products.sort_values(
+            by=["total_stock", "season_digit", "season_seq"],
+            ascending=[False, False, False],
+        ).reset_index(drop=True)
     else:
-        return products.reset_index(drop=True)
+        mode = cfg.get(mode_key, "stock_then_newest")
+        if mode == "stock_then_newest":
+            return products.sort_values(
+                by=["total_stock", "season_digit", "season_seq"],
+                ascending=[False, False, False],
+            ).reset_index(drop=True)
+        elif mode == "newest_then_stock":
+            return products.sort_values(
+                by=["season_digit", "season_seq", "total_stock"],
+                ascending=[False, False, False],
+            ).reset_index(drop=True)
+        else:
+            return products.reset_index(drop=True)
 
 
 def check_per_day_constraints(day_posts, cfg: dict, is_final_check: bool = False):
@@ -529,6 +553,13 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, d
     
     kisakod_last_day_index = {}
     min_gap_days = cfg.get("same_kisakod_min_gap_days", 0)
+    
+    from product_helpers import is_black_color
+    max_black_per_day = cfg.get("max_black_first_per_day", 0)
+    black_count_per_day = {}
+    
+    max_kisakod_uses = cfg.get("max_first_uses_per_kisakod", 0)
+    kisakod_first_usage_count = {}
 
     # Gün bazında slotları grupla
     day_slots = {}
@@ -559,6 +590,17 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, d
                     days_since = day_index - last_day_idx
                     if days_since < min_gap_days:
                         continue
+                
+                if max_kisakod_uses > 0:
+                    current_uses = kisakod_first_usage_count.get(kisakod, 0)
+                    if current_uses >= max_kisakod_uses:
+                        continue
+                
+                renk = product.get("Renk", "")
+                if max_black_per_day > 0 and is_black_color(renk):
+                    current_black = black_count_per_day.get(day_name, 0)
+                    if current_black >= max_black_per_day:
+                        continue
 
                 test_post = {
                     "day_name": day_name,
@@ -573,6 +615,12 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, d
                     day_posts.append(test_post)
                     used_first_kisakodrenk.add(kisakodrenk)
                     kisakod_last_day_index[kisakod] = day_index
+                    
+                    kisakod_first_usage_count[kisakod] = kisakod_first_usage_count.get(kisakod, 0) + 1
+                    
+                    if is_black_color(renk):
+                        black_count_per_day[day_name] = black_count_per_day.get(day_name, 0) + 1
+                    
                     assigned = True
                     break
 
