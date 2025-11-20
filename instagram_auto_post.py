@@ -583,12 +583,25 @@ def assign_preferred_first_products(calendar, first_candidates: pd.DataFrame, cf
     print("\nTercihli FIRST ürünler atanıyor...")
     posts = []
     
+    day_slots = {}
+    day_time_slots = {}
+    for slot in calendar:
+        day_name = slot.get("day_name")
+        time = slot.get("time")
+        if day_name not in day_slots:
+            day_slots[day_name] = []
+        day_slots[day_name].append(slot)
+        key = (day_name, time)
+        if key not in day_time_slots:
+            day_time_slots[key] = []
+        day_time_slots[key].append(slot)
+    
     for i, pref in enumerate(preferred_products, 1):
         kisakodrenk = pref.get("kisakodrenk", "").strip()
         if not kisakodrenk:
             continue
         
-        pref_date = pref.get("date")
+        pref_gun = pref.get("gun")
         pref_time = pref.get("time")
         
         matching_products = first_candidates[
@@ -601,25 +614,45 @@ def assign_preferred_first_products(calendar, first_candidates: pd.DataFrame, cf
         
         product = matching_products.iloc[0]
         
-        if pref_date and pref_time:
-            matching_slots = [s for s in calendar if s.get("date") == pref_date and s.get("time") == pref_time]
-            if not matching_slots:
-                print(f"  Uyarı: Tercihli ürün {i} ({kisakodrenk}) için slot bulunamadı: {pref_date} {pref_time}")
+        if pref_gun and pref_time:
+            slot_key = (pref_gun, pref_time)
+            if slot_key not in day_time_slots or not day_time_slots[slot_key]:
+                print(f"  Uyarı: Tercihli ürün {i} ({kisakodrenk}) için slot bulunamadı: {pref_gun} {pref_time}")
                 continue
             
-            slot = matching_slots[0]
+            slot = day_time_slots[slot_key][0]
             post = {
                 "day_name": slot["day_name"],
                 "time": slot["time"],
                 "date": slot.get("date"),
                 "first_product": product.to_dict(),
                 "is_preferred": True,
-                "preferred_date": pref_date,
+                "preferred_gun": pref_gun,
                 "preferred_time": pref_time,
             }
             posts.append(post)
             used_first_kisakodrenk.add(kisakodrenk.upper())
-            print(f"  ✓ Tercihli ürün {i} ({kisakodrenk}) atandı: {pref_date} {pref_time}")
+            print(f"  ✓ Tercihli ürün {i} ({kisakodrenk}) atandı: {pref_gun} {pref_time}")
+        
+        elif pref_gun:
+            if pref_gun not in day_slots or not day_slots[pref_gun]:
+                print(f"  Uyarı: Tercihli ürün {i} ({kisakodrenk}) için gün bulunamadı: {pref_gun}")
+                continue
+            
+            slot = day_slots[pref_gun][0]
+            post = {
+                "day_name": slot["day_name"],
+                "time": slot["time"],
+                "date": slot.get("date"),
+                "first_product": product.to_dict(),
+                "is_preferred": True,
+                "preferred_gun": pref_gun,
+                "preferred_time": None,
+            }
+            posts.append(post)
+            used_first_kisakodrenk.add(kisakodrenk.upper())
+            print(f"  ✓ Tercihli ürün {i} ({kisakodrenk}) atandı: {pref_gun} (herhangi bir saat)")
+        
         else:
             post = {
                 "day_name": None,
@@ -627,7 +660,7 @@ def assign_preferred_first_products(calendar, first_candidates: pd.DataFrame, cf
                 "date": None,
                 "first_product": product.to_dict(),
                 "is_preferred": True,
-                "preferred_date": None,
+                "preferred_gun": None,
                 "preferred_time": None,
                 "needs_slot_assignment": True,
             }
@@ -1127,7 +1160,7 @@ def build_first_kriter_detay_sheet(posts, cfg: dict, raw_df: pd.DataFrame) -> pd
             "UrunCinsi": first["UrunCinsi"],
             "IlkUrunToplamStok": first["total_stock"],
             "Tercihli": "Evet" if post.get("is_preferred") else "Hayır",
-            "Tercihli_Tarih": post.get("preferred_date", ""),
+            "Tercihli_Gun": post.get("preferred_gun", ""),
             "Tercihli_Saat": post.get("preferred_time", ""),
             "Tercihli_Durum": "SUCCESS" if post.get("is_preferred") else "N/A",
         }

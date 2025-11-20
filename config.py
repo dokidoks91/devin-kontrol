@@ -13,9 +13,9 @@ from datetime import datetime, timedelta
 
 @dataclass
 class PreferredFirstProduct:
-    """Single preferred FIRST product with optional date/time constraints"""
+    """Single preferred FIRST product with optional gun/time constraints"""
     kisakodrenk: str  # e.g., "0K009SİYAH"
-    date: Optional[str] = None  # yyyy-mm-dd format, must be within plan range
+    gun: Optional[str] = None  # Day name: Pazartesi, Salı, etc.
     time: Optional[str] = None  # HH:MM format, must match weekday/weekend times
     
     def is_valid(self) -> tuple[bool, str]:
@@ -26,10 +26,8 @@ class PreferredFirstProduct:
         if not self.kisakodrenk or not self.kisakodrenk.strip():
             return True, ""  # Empty row is valid (ignored)
         
-        if self.date and not self.time:
-            return False, "Tarih seçilen tercihli FIRST ürün için saat de seçmelisiniz."
-        if self.time and not self.date:
-            return False, "Saat seçilen tercihli FIRST ürün için tarih de seçmelisiniz."
+        if self.time and not self.gun:
+            return False, "Saat seçilen tercihli FIRST ürün için gün de seçmelisiniz."
         
         return True, ""
 
@@ -189,17 +187,23 @@ class PlanConfig:
         This should be called during plan generation after calendar is built.
         
         Args:
-            calendar: List of post slots with day_name, date, time
+            calendar: List of post slots with day_name, time
         
         Returns:
             List of error messages (empty if valid)
         """
         errors = []
         
-        date_time_slots = {}
+        available_days = set()
+        gun_time_slots = {}
         for slot in calendar:
-            key = (slot.get('date'), slot.get('time'))
-            date_time_slots[key] = slot
+            day_name = slot.get('day_name')
+            time = slot.get('time')
+            available_days.add(day_name)
+            key = (day_name, time)
+            if key not in gun_time_slots:
+                gun_time_slots[key] = []
+            gun_time_slots[key].append(slot)
         
         used_slots = {}
         
@@ -207,21 +211,28 @@ class PlanConfig:
             if not pref.kisakodrenk or not pref.kisakodrenk.strip():
                 continue
             
-            if pref.date and pref.time:
-                slot_key = (pref.date, pref.time)
+            if pref.gun and pref.gun not in available_days:
+                errors.append(
+                    f"Tercihli FIRST ürün {i} ({pref.kisakodrenk}): "
+                    f"Tercihli First ürün için seçilen gün planda yok. başka gün seçer misin."
+                )
+                continue
+            
+            if pref.gun and pref.time:
+                slot_key = (pref.gun, pref.time)
                 
-                if slot_key not in date_time_slots:
+                if slot_key not in gun_time_slots:
                     errors.append(
                         f"Tercihli FIRST ürün {i} ({pref.kisakodrenk}): "
-                        f"Tarih {pref.date} saat {pref.time} plan aralığında değil"
+                        f"Gün {pref.gun} saat {pref.time} plan aralığında değil"
                     )
                     continue
                 
                 if slot_key in used_slots:
                     other_idx = used_slots[slot_key]
                     errors.append(
-                        f"Tercihli FIRST ürün {i} ({pref.kisakodrenk}) ve "
-                        f"ürün {other_idx} aynı tarih/saate atanmış: {pref.date} {pref.time}"
+                        f"Bu tarih ve saatte iki tercihli FIRST ürünü yerleştirilemez. Lütfen düzeltin. "
+                        f"(Ürün {i}: {pref.kisakodrenk} ve Ürün {other_idx} - {pref.gun} {pref.time})"
                     )
                 else:
                     used_slots[slot_key] = i
@@ -286,7 +297,7 @@ class PlanConfig:
             "preferred_first_products": [
                 {
                     "kisakodrenk": p.kisakodrenk,
-                    "date": p.date,
+                    "gun": p.gun,
                     "time": p.time
                 }
                 for p in self.preferred_first_products

@@ -660,7 +660,7 @@ class PlannerGUI:
         )
         row += 1
         
-        ttk.Label(frame, text="Tarih+Saat seçilirse: O gün o saatte kullanılır (hard constraint)", font=("Arial", 8, "italic")).grid(
+        ttk.Label(frame, text="Gün+Saat seçilirse: O gün o saatte kullanılır (hard constraint)", font=("Arial", 8, "italic")).grid(
             row=row, column=0, columnspan=3, sticky=tk.W, padx=20
         )
         row += 1
@@ -681,7 +681,7 @@ class PlannerGUI:
         ttk.Label(frame, text="KisaKod+Renk", font=("Arial", 9, "bold"), width=20).grid(
             row=row, column=1, sticky=tk.W, padx=5
         )
-        ttk.Label(frame, text="Tarih (yyyy-mm-dd)", font=("Arial", 9, "bold"), width=15).grid(
+        ttk.Label(frame, text="Gün", font=("Arial", 9, "bold"), width=15).grid(
             row=row, column=2, sticky=tk.W, padx=5
         )
         ttk.Label(frame, text="Saat", font=("Arial", 9, "bold"), width=10).grid(
@@ -689,10 +689,14 @@ class PlannerGUI:
         )
         row += 1
         
+        gun_options = ["", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+        weekday_times = ["", "09:00", "10:30", "11:30", "12:30", "13:30", "14:30", "15:30", "16:30", "17:30", "19:30", "21:00", "22:30"]
+        weekend_times = ["", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:30", "19:30", "21:00"]
+        
         self.preferred_entries = []
         for i in range(10):
             kisakodrenk_var = tk.StringVar()
-            date_var = tk.StringVar()
+            gun_var = tk.StringVar()
             time_var = tk.StringVar()
             
             ttk.Label(frame, text=f"{i+1}.", font=("Arial", 9)).grid(
@@ -703,19 +707,34 @@ class PlannerGUI:
                 row=row, column=1, sticky=tk.W, padx=5, pady=2
             )
             
-            ttk.Entry(frame, textvariable=date_var, width=15).grid(
-                row=row, column=2, sticky=tk.W, padx=5, pady=2
-            )
+            gun_combo = ttk.Combobox(frame, textvariable=gun_var, width=15, state="readonly", values=gun_options)
+            gun_combo.grid(row=row, column=2, sticky=tk.W, padx=5, pady=2)
             
-            ttk.Combobox(frame, textvariable=time_var, width=10, state="readonly").grid(
-                row=row, column=3, sticky=tk.W, padx=5, pady=2
-            )
+            time_combo = ttk.Combobox(frame, textvariable=time_var, width=10, state="readonly")
+            time_combo.grid(row=row, column=3, sticky=tk.W, padx=5, pady=2)
+            
+            def on_gun_change(event, gun_v=gun_var, time_v=time_var, time_c=time_combo, wdt=weekday_times, wet=weekend_times):
+                gun = gun_v.get()
+                if not gun:
+                    time_c['values'] = [""]
+                    time_v.set("")
+                    time_c['state'] = 'disabled'
+                elif gun in ["Cumartesi", "Pazar"]:
+                    time_c['values'] = wet
+                    time_c['state'] = 'readonly'
+                else:
+                    time_c['values'] = wdt
+                    time_c['state'] = 'readonly'
+            
+            gun_combo.bind('<<ComboboxSelected>>', on_gun_change)
+            time_combo['state'] = 'disabled'
             
             self.preferred_entries.append({
                 'kisakodrenk': kisakodrenk_var,
-                'date': date_var,
+                'gun': gun_var,
                 'time': time_var,
-                'time_combo': frame.grid_slaves(row=row, column=3)[0]
+                'gun_combo': gun_combo,
+                'time_combo': time_combo
             })
             
             row += 1
@@ -730,17 +749,12 @@ class PlannerGUI:
         )
         row += 1
         
-        ttk.Label(frame, text="• Tarih seçilirse saat de seçilmelidir (zorunlu)", font=("Arial", 8)).grid(
+        ttk.Label(frame, text="• Saat seçilirse gün de seçilmelidir (zorunlu)", font=("Arial", 8)).grid(
             row=row, column=0, columnspan=4, sticky=tk.W, padx=20
         )
         row += 1
         
-        ttk.Label(frame, text="• Saat seçilirse tarih de seçilmelidir (zorunlu)", font=("Arial", 8)).grid(
-            row=row, column=0, columnspan=4, sticky=tk.W, padx=20
-        )
-        row += 1
-        
-        ttk.Label(frame, text="• Tarih plan aralığı içinde olmalıdır", font=("Arial", 8)).grid(
+        ttk.Label(frame, text="• Gün plan aralığı içinde olmalıdır", font=("Arial", 8)).grid(
             row=row, column=0, columnspan=4, sticky=tk.W, padx=20
         )
         row += 1
@@ -945,14 +959,14 @@ class PlannerGUI:
         from config import PreferredFirstProduct
         for entry in self.preferred_entries:
             kisakodrenk = entry['kisakodrenk'].get().strip()
-            date = entry['date'].get().strip()
+            gun = entry['gun'].get().strip()
             time = entry['time'].get().strip()
             
             if kisakodrenk:
                 config.preferred_first_products.append(
                     PreferredFirstProduct(
                         kisakodrenk=kisakodrenk,
-                        date=date if date else None,
+                        gun=gun if gun else None,
                         time=time if time else None
                     )
                 )
