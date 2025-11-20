@@ -106,6 +106,8 @@ class PlannerGUI:
         self.is_running = False
         
         self.create_widgets()
+        self.auto_load_settings()
+        self.setup_auto_save_triggers()
         self.check_progress_queue()
     
     def create_widgets(self):
@@ -150,14 +152,8 @@ class PlannerGUI:
         
         ttk.Button(
             button_frame,
-            text="Ayarları Kaydet",
-            command=self.save_config
-        ).pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(
-            button_frame,
-            text="Ayarları Yükle",
-            command=self.load_config
+            text="Ayarları Sıfırla",
+            command=self.reset_settings
         ).pack(side=tk.LEFT, padx=5)
     
     def create_plan_tab(self, notebook):
@@ -781,6 +777,18 @@ class PlannerGUI:
             messagebox.showwarning("Uyarı", "Plan oluşturma zaten çalışıyor!")
             return
         
+        missing_fields = self.validate_required_fields()
+        if missing_fields:
+            messagebox.showerror(
+                "Eksik Bilgiler",
+                "Plan oluşturmak için aşağıdaki alanlar doldurulmalıdır:\n\n" + 
+                "\n".join(f"• {field}" for field in missing_fields) +
+                "\n\nLütfen bu alanları doldurup tekrar deneyin."
+            )
+            return
+        
+        self.auto_save_settings()
+        
         config = self.collect_config()
         errors = config.validate()
         
@@ -853,31 +861,261 @@ class PlannerGUI:
         self.append_output(f"\n{error_msg}\n")
         messagebox.showerror("Hata", "Plan oluşturma sırasında hata oluştu. Detaylar için çıktı alanına bakın.")
     
-    def save_config(self):
-        """Save current configuration to file"""
-        filename = filedialog.asksaveasfilename(
-            title="Ayarları Kaydet",
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
-        if filename:
+    def setup_auto_save_triggers(self):
+        """Setup auto-save triggers on field changes"""
+        def trigger_auto_save(*args):
+            self.auto_save_settings()
+        
+        self.excel_path.trace_add("write", trigger_auto_save)
+        self.start_day.trace_add("write", trigger_auto_save)
+        self.num_days.trace_add("write", trigger_auto_save)
+        
+        self.use_yazlik_front.trace_add("write", trigger_auto_save)
+        self.use_kislik_front.trace_add("write", trigger_auto_save)
+        self.cekim_front_evet.trace_add("write", trigger_auto_save)
+        self.cekim_front_na.trace_add("write", trigger_auto_save)
+        
+        self.one_atilma_allow_na.trace_add("write", trigger_auto_save)
+        self.one_atilma_date.trace_add("write", trigger_auto_save)
+        self.one_atilma_days.trace_add("write", trigger_auto_save)
+        self.min_stock_front.trace_add("write", trigger_auto_save)
+        self.min_nos_front.trace_add("write", trigger_auto_save)
+        self.min_dvm_front.trace_add("write", trigger_auto_save)
+        
+        for i in range(1, 9):
+            self.front_size_y[i].trace_add("write", trigger_auto_save)
+            self.front_size_z[i].trace_add("write", trigger_auto_save)
+        
+        self.use_yazlik_back.trace_add("write", trigger_auto_save)
+        self.use_kislik_back.trace_add("write", trigger_auto_save)
+        self.cekim_back_evet.trace_add("write", trigger_auto_save)
+        self.cekim_back_na.trace_add("write", trigger_auto_save)
+        self.min_stock_back.trace_add("write", trigger_auto_save)
+        
+        for i in range(1, 9):
+            self.back_size_y[i].trace_add("write", trigger_auto_save)
+            self.back_size_z[i].trace_add("write", trigger_auto_save)
+        
+        self.max_same_uruncinsi.trace_add("write", trigger_auto_save)
+        self.min_distinct_uruncinsi.trace_add("write", trigger_auto_save)
+        self.max_same_color.trace_add("write", trigger_auto_save)
+        self.min_distinct_color.trace_add("write", trigger_auto_save)
+        self.same_kisakod_gap.trace_add("write", trigger_auto_save)
+        
+        self.max_black_first_per_day.trace_add("write", trigger_auto_save)
+        self.max_first_uses_per_kisakod.trace_add("write", trigger_auto_save)
+        
+        self.global_first_stock.trace_add("write", trigger_auto_save)
+        self.global_total_stock.trace_add("write", trigger_auto_save)
+        
+        self.prioritize_by_newness.trace_add("write", trigger_auto_save)
+        self.prioritize_by_stock.trace_add("write", trigger_auto_save)
+    
+    def get_settings_file_path(self):
+        """Get path to settings file"""
+        return os.path.join(os.path.expanduser("~"), ".instagram_planner_settings.json")
+    
+    def auto_save_settings(self):
+        """Automatically save current settings to local file"""
+        try:
             import json
             config = self.collect_config()
-            with open(filename, 'w', encoding='utf-8') as f:
+            settings_file = self.get_settings_file_path()
+            with open(settings_file, 'w', encoding='utf-8') as f:
                 json.dump(config.to_dict(), f, indent=2, ensure_ascii=False)
-            messagebox.showinfo("Başarılı", f"Ayarlar kaydedildi: {filename}")
+        except Exception as e:
+            print(f"Auto-save failed: {e}")
     
-    def load_config(self):
-        """Load configuration from file"""
-        filename = filedialog.askopenfilename(
-            title="Ayarları Yükle",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
-        if filename:
+    def auto_load_settings(self):
+        """Automatically load settings from local file on startup"""
+        try:
             import json
-            with open(filename, 'r', encoding='utf-8') as f:
-                cfg_dict = json.load(f)
-            messagebox.showinfo("Başarılı", f"Ayarlar yüklendi: {filename}")
+            settings_file = self.get_settings_file_path()
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r', encoding='utf-8') as f:
+                    cfg_dict = json.load(f)
+                self.load_settings_into_gui(cfg_dict)
+        except Exception as e:
+            print(f"Auto-load failed: {e}")
+    
+    def load_settings_into_gui(self, cfg_dict):
+        """Load settings dictionary into GUI fields"""
+        if 'stock_excel_path' in cfg_dict:
+            self.excel_path.set(cfg_dict['stock_excel_path'])
+        if 'plan_start_day_name' in cfg_dict:
+            self.start_day.set(cfg_dict['plan_start_day_name'])
+        if 'plan_num_days' in cfg_dict:
+            self.num_days.set(cfg_dict['plan_num_days'])
+        
+        if 'use_yazlik_front' in cfg_dict:
+            self.use_yazlik_front.set(cfg_dict['use_yazlik_front'])
+        if 'use_kislik_front' in cfg_dict:
+            self.use_kislik_front.set(cfg_dict['use_kislik_front'])
+        
+        if 'allowed_cekim_front' in cfg_dict:
+            cekim_front = cfg_dict['allowed_cekim_front']
+            self.cekim_front_evet.set('EVET' in cekim_front)
+            self.cekim_front_na.set('NA' in cekim_front)
+        
+        if 'one_atilma_allow_na' in cfg_dict:
+            self.one_atilma_allow_na.set(cfg_dict['one_atilma_allow_na'])
+        if 'one_atilma_reference_date' in cfg_dict:
+            self.one_atilma_date.set(cfg_dict['one_atilma_reference_date'])
+        if 'one_atilma_min_days' in cfg_dict:
+            self.one_atilma_days.set(cfg_dict['one_atilma_min_days'])
+        if 'min_total_stock_front' in cfg_dict:
+            self.min_stock_front.set(cfg_dict['min_total_stock_front'])
+        if 'min_nos_front' in cfg_dict:
+            self.min_nos_front.set(cfg_dict['min_nos_front'])
+        if 'min_dvm_front' in cfg_dict:
+            self.min_dvm_front.set(cfg_dict['min_dvm_front'])
+        
+        if 'front_size_stock_rules' in cfg_dict:
+            rules = cfg_dict['front_size_stock_rules']
+            if isinstance(rules, list):
+                for item in rules:
+                    if isinstance(item, (list, tuple)) and len(item) == 2:
+                        size_count, (y, z) = item
+                        if size_count in self.front_size_y:
+                            self.front_size_y[size_count].set(y)
+                            self.front_size_z[size_count].set(z)
+        
+        if 'use_yazlik_back' in cfg_dict:
+            self.use_yazlik_back.set(cfg_dict['use_yazlik_back'])
+        if 'use_kislik_back' in cfg_dict:
+            self.use_kislik_back.set(cfg_dict['use_kislik_back'])
+        
+        if 'allowed_cekim_back' in cfg_dict:
+            cekim_back = cfg_dict['allowed_cekim_back']
+            self.cekim_back_evet.set('EVET' in cekim_back)
+            self.cekim_back_na.set('NA' in cekim_back)
+        
+        if 'min_total_stock_back' in cfg_dict:
+            self.min_stock_back.set(cfg_dict['min_total_stock_back'])
+        
+        if 'back_size_stock_rules' in cfg_dict:
+            rules = cfg_dict['back_size_stock_rules']
+            if isinstance(rules, list):
+                for item in rules:
+                    if isinstance(item, (list, tuple)) and len(item) == 2:
+                        size_count, (y, z) = item
+                        if size_count in self.back_size_y:
+                            self.back_size_y[size_count].set(y)
+                            self.back_size_z[size_count].set(z)
+        
+        if 'max_same_uruncinsi_in_a_row_per_day' in cfg_dict:
+            self.max_same_uruncinsi.set(cfg_dict['max_same_uruncinsi_in_a_row_per_day'])
+        if 'min_distinct_uruncinsi_per_day' in cfg_dict:
+            self.min_distinct_uruncinsi.set(cfg_dict['min_distinct_uruncinsi_per_day'])
+        if 'max_same_color_in_a_row_per_day' in cfg_dict:
+            self.max_same_color.set(cfg_dict['max_same_color_in_a_row_per_day'])
+        if 'min_distinct_color_per_day' in cfg_dict:
+            self.min_distinct_color.set(cfg_dict['min_distinct_color_per_day'])
+        if 'same_kisakod_min_gap_days' in cfg_dict:
+            self.same_kisakod_gap.set(cfg_dict['same_kisakod_min_gap_days'])
+        
+        if 'max_black_first_per_day' in cfg_dict:
+            self.max_black_first_per_day.set(cfg_dict['max_black_first_per_day'])
+        if 'max_first_uses_per_kisakod' in cfg_dict:
+            self.max_first_uses_per_kisakod.set(cfg_dict['max_first_uses_per_kisakod'])
+        
+        if 'global_min_first_stock_sum' in cfg_dict:
+            self.global_first_stock.set(cfg_dict['global_min_first_stock_sum'])
+        if 'global_min_total_stock_sum' in cfg_dict:
+            self.global_total_stock.set(cfg_dict['global_min_total_stock_sum'])
+        
+        if 'prioritize_by_newness' in cfg_dict:
+            self.prioritize_by_newness.set(cfg_dict['prioritize_by_newness'])
+        if 'prioritize_by_stock' in cfg_dict:
+            self.prioritize_by_stock.set(cfg_dict['prioritize_by_stock'])
+    
+    def reset_settings(self):
+        """Reset all settings to default values and clear saved settings"""
+        result = messagebox.askyesno(
+            "Ayarları Sıfırla",
+            "Tüm ayarlar silinecek ve varsayılan değerlere dönülecek.\nDevam etmek istiyor musunuz?"
+        )
+        if result:
+            settings_file = self.get_settings_file_path()
+            if os.path.exists(settings_file):
+                os.remove(settings_file)
+            
+            self.excel_path.set("")
+            self.start_day.set("Pazartesi")
+            self.num_days.set(7)
+            
+            self.use_yazlik_front.set(True)
+            self.use_kislik_front.set(True)
+            self.cekim_front_evet.set(True)
+            self.cekim_front_na.set(False)
+            
+            self.one_atilma_allow_na.set(True)
+            self.one_atilma_date.set("")
+            self.one_atilma_days.set(45)
+            self.min_stock_front.set(0)
+            self.min_nos_front.set(0)
+            self.min_dvm_front.set(0)
+            
+            for i in range(1, 9):
+                self.front_size_y[i].set(0)
+                self.front_size_z[i].set(0)
+            
+            self.use_yazlik_back.set(True)
+            self.use_kislik_back.set(True)
+            self.cekim_back_evet.set(True)
+            self.cekim_back_na.set(False)
+            self.min_stock_back.set(0)
+            
+            for i in range(1, 9):
+                self.back_size_y[i].set(0)
+                self.back_size_z[i].set(0)
+            
+            self.max_same_uruncinsi.set(0)
+            self.min_distinct_uruncinsi.set(0)
+            self.max_same_color.set(0)
+            self.min_distinct_color.set(0)
+            self.same_kisakod_gap.set(0)
+            
+            self.max_black_first_per_day.set(0)
+            self.max_first_uses_per_kisakod.set(0)
+            
+            self.global_first_stock.set(0)
+            self.global_total_stock.set(0)
+            
+            self.prioritize_by_newness.set(False)
+            self.prioritize_by_stock.set(False)
+            
+            messagebox.showinfo("Başarılı", "Tüm ayarlar sıfırlandı.")
+    
+    def validate_required_fields(self):
+        """Validate all required fields before plan generation"""
+        missing_fields = []
+        
+        if not self.excel_path.get():
+            missing_fields.append("Stok dosyası (Excel)")
+        
+        if not self.start_day.get():
+            missing_fields.append("Plan başlangıç günü")
+        
+        if not self.num_days.get() or self.num_days.get() < 1:
+            missing_fields.append("Kaç günlük plan (1-7)")
+        
+        if not self.use_yazlik_front.get() and not self.use_kislik_front.get():
+            missing_fields.append("FIRST mevsim seçimi (Yazlık veya Kışlık)")
+        
+        if not self.use_yazlik_back.get() and not self.use_kislik_back.get():
+            missing_fields.append("BACK mevsim seçimi (Yazlık veya Kışlık)")
+        
+        if not self.cekim_front_evet.get() and not self.cekim_front_na.get():
+            missing_fields.append("FIRST Çekim seçimi (en az bir seçenek)")
+        
+        if not self.cekim_back_evet.get() and not self.cekim_back_na.get():
+            missing_fields.append("BACK Çekim seçimi (en az bir seçenek)")
+        
+        if not self.prioritize_by_newness.get() and not self.prioritize_by_stock.get():
+            missing_fields.append("Önceliklendirme (Yenilik veya Stok)")
+        
+        return missing_fields
 
 
 def main():
