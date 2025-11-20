@@ -55,16 +55,16 @@ class PlannerGUI:
         self.start_day = tk.StringVar(value="Pazartesi")
         self.num_days = tk.IntVar(value=7)
         
-        self.use_yazlik_front = tk.BooleanVar(value=True)
-        self.use_kislik_front = tk.BooleanVar(value=True)
-        self.cekim_front_evet = tk.BooleanVar(value=True)
-        self.cekim_front_na = tk.BooleanVar(value=True)
-        self.one_atilma_allow_na = tk.BooleanVar(value=True)
-        self.one_atilma_date = tk.StringVar(value="2025-02-01")
-        self.one_atilma_days = tk.IntVar(value=45)
-        self.min_stock_front = tk.IntVar(value=15)
-        self.min_nos_front = tk.IntVar(value=2)
-        self.min_dvm_front = tk.IntVar(value=2)
+        self.use_yazlik_front = tk.BooleanVar(value=False)
+        self.use_kislik_front = tk.BooleanVar(value=False)
+        self.cekim_front_evet = tk.BooleanVar(value=False)
+        self.cekim_front_na = tk.BooleanVar(value=False)
+        self.one_atilma_allow_na = tk.BooleanVar(value=False)
+        self.one_atilma_date = tk.StringVar(value="")
+        self.one_atilma_days = tk.IntVar(value=0)
+        self.min_stock_front = tk.IntVar(value=0)
+        self.min_nos_front = tk.IntVar(value=0)
+        self.min_dvm_front = tk.IntVar(value=0)
         
         self.front_size_y = {}
         self.front_size_z = {}
@@ -72,11 +72,11 @@ class PlannerGUI:
             self.front_size_y[i] = tk.IntVar(value=0)
             self.front_size_z[i] = tk.IntVar(value=0)
         
-        self.use_yazlik_back = tk.BooleanVar(value=True)
-        self.use_kislik_back = tk.BooleanVar(value=True)
-        self.cekim_back_evet = tk.BooleanVar(value=True)
-        self.cekim_back_na = tk.BooleanVar(value=True)
-        self.min_stock_back = tk.IntVar(value=5)
+        self.use_yazlik_back = tk.BooleanVar(value=False)
+        self.use_kislik_back = tk.BooleanVar(value=False)
+        self.cekim_back_evet = tk.BooleanVar(value=False)
+        self.cekim_back_na = tk.BooleanVar(value=False)
+        self.min_stock_back = tk.IntVar(value=0)
         
         self.back_size_y = {}
         self.back_size_z = {}
@@ -84,10 +84,10 @@ class PlannerGUI:
             self.back_size_y[i] = tk.IntVar(value=0)
             self.back_size_z[i] = tk.IntVar(value=0)
         
-        self.max_same_uruncinsi = tk.IntVar(value=3)
-        self.min_distinct_uruncinsi = tk.IntVar(value=2)
-        self.max_same_color = tk.IntVar(value=3)
-        self.min_distinct_color = tk.IntVar(value=3)
+        self.max_same_uruncinsi = tk.IntVar(value=0)
+        self.min_distinct_uruncinsi = tk.IntVar(value=0)
+        self.max_same_color = tk.IntVar(value=0)
+        self.min_distinct_color = tk.IntVar(value=0)
         self.same_kisakod_gap = tk.IntVar(value=0)
         
         self.max_black_first_per_day = tk.IntVar(value=0)
@@ -1044,14 +1044,14 @@ class PlannerGUI:
             self.start_day.set("Pazartesi")
             self.num_days.set(7)
             
-            self.use_yazlik_front.set(True)
-            self.use_kislik_front.set(True)
-            self.cekim_front_evet.set(True)
+            self.use_yazlik_front.set(False)
+            self.use_kislik_front.set(False)
+            self.cekim_front_evet.set(False)
             self.cekim_front_na.set(False)
             
-            self.one_atilma_allow_na.set(True)
+            self.one_atilma_allow_na.set(False)
             self.one_atilma_date.set("")
-            self.one_atilma_days.set(45)
+            self.one_atilma_days.set(0)
             self.min_stock_front.set(0)
             self.min_nos_front.set(0)
             self.min_dvm_front.set(0)
@@ -1060,9 +1060,9 @@ class PlannerGUI:
                 self.front_size_y[i].set(0)
                 self.front_size_z[i].set(0)
             
-            self.use_yazlik_back.set(True)
-            self.use_kislik_back.set(True)
-            self.cekim_back_evet.set(True)
+            self.use_yazlik_back.set(False)
+            self.use_kislik_back.set(False)
+            self.cekim_back_evet.set(False)
             self.cekim_back_na.set(False)
             self.min_stock_back.set(0)
             
