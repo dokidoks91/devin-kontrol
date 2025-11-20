@@ -853,8 +853,11 @@ class PlannerGUI:
         return self.decision_result
     
     def on_relaxation_choice(self, suggestions, message):
-        """Handle relaxation choice dialog with two buttons"""
+        """Handle relaxation choice dialog with two buttons - thread-safe version"""
+        import threading
+        
         choice_result = {"choice": "manual"}
+        choice_event = threading.Event()
         
         def show_dialog():
             dialog = tk.Toplevel(self.root)
@@ -896,10 +899,12 @@ class PlannerGUI:
             def on_manual():
                 choice_result["choice"] = "manual"
                 dialog.destroy()
+                choice_event.set()  # Signal worker thread
             
             def on_apply():
                 choice_result["choice"] = "apply"
                 dialog.destroy()
+                choice_event.set()  # Signal worker thread
             
             manual_button = ttk.Button(button_frame, text="Hayır, ayarları düzelteceğim", 
                                        command=on_manual)
@@ -912,7 +917,10 @@ class PlannerGUI:
             dialog.wait_window()
         
         self.root.after(0, show_dialog)
-        self.root.wait_variable(choice_result)
+        
+        if not choice_event.wait(timeout=300):
+            print("WARNING: Relaxation choice dialog timed out after 5 minutes")
+            return "manual"
         
         return choice_result["choice"]
     

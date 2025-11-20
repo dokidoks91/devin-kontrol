@@ -308,6 +308,7 @@ class BestEffortAnalyzer:
                 })
         
         min_gap_days = self.cfg.get("same_kisakod_min_gap_days", 0)
+        print(f"🔍 DEBUG: same_kisakod_min_gap_days in analyzer = {min_gap_days}")
         if min_gap_days > 0:
             kisakod_days = {}
             for p in posts:

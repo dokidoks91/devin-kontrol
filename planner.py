@@ -74,6 +74,10 @@ def run_planner_with_best_effort(
         emit("PASS 1: Strict mode - trying with original config")
         emit("=" * 70)
         
+        if config_override:
+            min_gap_value = config_override.get("same_kisakod_min_gap_days", "NOT_SET")
+            emit(f"🔍 DEBUG: same_kisakod_min_gap_days at strict pass start = {min_gap_value}")
+        
         result = run_planner(
             excel_path=excel_path,
             start_day=start_day,

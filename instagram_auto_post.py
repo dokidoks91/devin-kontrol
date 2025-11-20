@@ -704,6 +704,7 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, d
     
     kisakod_last_day_index = {}
     min_gap_days = cfg.get("same_kisakod_min_gap_days", 0)
+    print(f"🔍 DEBUG: same_kisakod_min_gap_days in assignment = {min_gap_days}")
     
     from product_helpers import is_black_color
     max_black_per_day = cfg.get("max_black_first_per_day", 0)
@@ -730,7 +731,13 @@ def assign_first_products(calendar, first_candidates: pd.DataFrame, cfg: dict, d
 
         for slot in slots:
             assigned = False
+            attempts = 0
+            max_attempts = len(first_candidates)
             for idx, product in first_candidates.iterrows():
+                attempts += 1
+                if attempts > max_attempts:
+                    print(f"  ⚠️ Max attempts ({max_attempts}) reached for slot {day_name} {slot['time']}")
+                    break
                 kisakodrenk = product["kisakodrenk"]
                 if kisakodrenk in used_first_kisakodrenk:
                     continue
