@@ -341,10 +341,11 @@ def check_one_atilma_tarihi_front(row, cfg: dict) -> bool:
         ref_date = datetime.strptime(cfg["one_atilma_reference_date"], "%Y-%m-%d")
         min_days = int(cfg["one_atilma_min_days"])
         threshold = ref_date - timedelta(days=min_days)
-        one_date = pd.to_datetime(value)
+        one_date = pd.to_datetime(value, dayfirst=True, errors='coerce')
+        if pd.isna(one_date):
+            return True
         return one_date < threshold
     except Exception:
-        # Anlaşılmaz tarih varsa, güvenli olmak için GEÇERLİ sayıyoruz
         return True
 
 
