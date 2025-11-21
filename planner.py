@@ -154,6 +154,23 @@ def run_planner_with_best_effort(
                 
                 emit(f"   Trial counts: {placed_first}/{required_first} FIRST, {placed_back}/{required_back} BACK")
                 
+                from instagram_auto_post import check_advanced_first_constraints
+                constraints_pass = True
+                try:
+                    constraints_pass = check_advanced_first_constraints(trial_posts, cfg, decide=lambda msg: True)
+                except Exception as e:
+                    emit(f"   ⚠️  Advanced constraint check failed: {e}")
+                    constraints_pass = False
+                
+                if not constraints_pass:
+                    emit(f"   ⚠️  Trial posts violate advanced constraints (max black per day, max KisaKod uses)")
+                    emit(f"   Adjusting missing counts to reflect constraint violations")
+                    if missing_first == 0:
+                        missing_first = 1  # Mark as non-zero to indicate constraint issues
+                    if missing_back == 0:
+                        missing_back = 1  # Mark as non-zero to indicate constraint issues
+                    emit(f"   Adjusted counts: missing_first={missing_first}, missing_back={missing_back}")
+                
                 prioritization_is_blocking = False
                 if missing_first == 0 and missing_back == 0 and cfg.get("prioritize_by_newness") and not cfg.get("prioritize_by_stock"):
                     emit(f"\n🔍 Detecting prioritization blocking: missing_first=0, missing_back=0, but constraints may fail")
@@ -190,12 +207,14 @@ def run_planner_with_best_effort(
         seen_rules = {}
         for sug in all_suggestions:
             rule_type = sug["rule_type"]
-            if rule_type not in seen_rules:
-                seen_rules[rule_type] = sug
+            rule_name = sug.get("rule_name", rule_type)
+            key = (rule_type, rule_name)
+            if key not in seen_rules:
+                seen_rules[key] = sug
             else:
-                existing = seen_rules[rule_type]
+                existing = seen_rules[key]
                 if sug.get("estimated_new_candidates", 0) > existing.get("estimated_new_candidates", 0):
-                    seen_rules[rule_type] = sug
+                    seen_rules[key] = sug
         
         suggestions = list(seen_rules.values())
         
