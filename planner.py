@@ -181,31 +181,31 @@ def run_planner_with_best_effort(
                 emit(f"   Trial assignment returned empty - using realistic fallback counts")
                 missing_first = len(calendar)
                 missing_back = len(calendar) * 9
-                
-                if preferred_products:
-                    emit(f"\n📋 Preferred FIRST products placement check:")
-                    all_stock_kisakodrenk = set(unique_products["kisakodrenk"].str.upper())
-                    first_pool_kisakodrenk = set(first_candidates["kisakodrenk"].str.upper())
-                    placed_kisakodrenk = set(p["first_product"]["kisakodrenk"].upper() for p in trial_posts if p.get("first_product"))
-                    
-                    for i, pref in enumerate(preferred_products, 1):
-                        kisakodrenk = pref.get("kisakodrenk", "").strip().upper()
-                        if not kisakodrenk:
-                            continue
-                        
-                        if kisakodrenk not in all_stock_kisakodrenk:
-                            emit(f"   ❌ {i}. {kisakodrenk}: Stok dosyasında bulunamadı")
-                        elif kisakodrenk not in first_pool_kisakodrenk:
-                            emit(f"   ⚠️  {i}. {kisakodrenk}: FIRST havuzuna giremedi (sezon/çekim/stok filtreleri)")
-                        elif kisakodrenk in placed_kisakodrenk:
-                            emit(f"   ✓ {i}. {kisakodrenk}: Plana atandı")
-                        else:
-                            emit(f"   ⚠️  {i}. {kisakodrenk}: Havuzda ama atama aşamasında yer bulamadı (günlük kısıtlar)")
         except Exception as e:
             emit(f"   Trial assignment failed: {e}")
             emit(f"   Using fallback counts (may be inaccurate)")
             missing_first = len(calendar)
             missing_back = len(calendar) * 9
+        
+        if preferred_products and trial_posts:
+            emit(f"\n📋 Preferred FIRST products placement check:")
+            all_stock_kisakodrenk = set(unique_products["kisakodrenk"].str.upper())
+            first_pool_kisakodrenk = set(first_candidates["kisakodrenk"].str.upper())
+            placed_kisakodrenk = set(p["first_product"]["kisakodrenk"].upper() for p in trial_posts if p.get("first_product"))
+            
+            for i, pref in enumerate(preferred_products, 1):
+                kisakodrenk = pref.get("kisakodrenk", "").strip().upper()
+                if not kisakodrenk:
+                    continue
+                
+                if kisakodrenk not in all_stock_kisakodrenk:
+                    emit(f"   ❌ {i}. {kisakodrenk}: Stok dosyasında bulunamadı")
+                elif kisakodrenk not in first_pool_kisakodrenk:
+                    emit(f"   ⚠️  {i}. {kisakodrenk}: FIRST havuzuna giremedi (sezon/çekim/stok filtreleri)")
+                elif kisakodrenk in placed_kisakodrenk:
+                    emit(f"   ✓ {i}. {kisakodrenk}: Plana atandı")
+                else:
+                    emit(f"   ⚠️  {i}. {kisakodrenk}: Havuzda ama atama aşamasında yer bulamadı (günlük kısıtlar)")
         
         all_suggestions = phase1_result["suggestions"] + phase2_suggestions
         seen_rules = {}
