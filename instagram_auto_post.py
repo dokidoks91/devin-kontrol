@@ -577,10 +577,22 @@ def assign_preferred_first_products(calendar, first_candidates: pd.DataFrame, cf
     Returns (posts, updated_used_set)
     """
     def norm_day(s):
-        """Normalize day name: strip whitespace and title case"""
+        """Normalize Turkish day name to canonical form"""
         if not s:
             return ""
-        return str(s).strip().title()
+        s_normalized = str(s).strip().upper()
+        
+        day_map = {
+            "PAZARTESI": "Pazartesi",
+            "SALI": "Salı",
+            "ÇARŞAMBA": "Çarşamba",
+            "PERŞEMBE": "Perşembe",
+            "CUMA": "Cuma",
+            "CUMARTESI": "Cumartesi",
+            "PAZAR": "Pazar",
+        }
+        
+        return day_map.get(s_normalized, str(s).strip())
     
     def norm_time(t):
         """Normalize time to HH:MM string format with zero-padded hours - handles edge cases"""
