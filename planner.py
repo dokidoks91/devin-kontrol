@@ -157,6 +157,10 @@ def run_planner_with_best_effort(
                 missing_back = max(0, required_back - placed_back)
                 
                 emit(f"   Trial counts: {placed_first}/{required_first} FIRST, {placed_back}/{required_back} BACK")
+            else:
+                emit(f"   Trial assignment returned empty - using realistic fallback counts")
+                missing_first = len(calendar)
+                missing_back = len(calendar) * 9
                 
                 from instagram_auto_post import check_advanced_first_constraints
                 constraints_pass = True
@@ -227,8 +231,9 @@ def run_planner_with_best_effort(
                 "rule_type": "PRIORITY_mode",
                 "original_value": "Yalnızca yeniliğe göre",
                 "suggested_value": "Yenilik + stok (ikincil öncelik)",
-                "estimated_new_candidates": 0,
-                "note": "Atama kısıtlarıyla çakışmaları azaltır (yüksek etki)"
+                "estimated_new_candidates": 9999,
+                "note": "Atama kısıtlarıyla çakışmaları azaltır (yüksek etki)",
+                "preselected": True
             }
             suggestions.append(priority_suggestion)
             emit(f"\n⚠️  Added PRIORITY_mode suggestion: Enable stock as secondary priority")
@@ -385,6 +390,11 @@ def run_planner_with_best_effort(
                         required_back_retry = len(calendar) * 9
                         placed_back_retry = sum(len(p.get("back_products", [])) for p in trial_posts_retry)
                         missing_back = max(0, required_back_retry - placed_back_retry)
+                    else:
+                        emit(f"   Trial assignment returned empty - using realistic fallback counts")
+                        phase2_suggestions_retry = []
+                        missing_first = len(calendar)
+                        missing_back = len(calendar) * 9
                 except Exception as e:
                     emit(f"   Trial assignment failed: {e}")
                     emit(f"   Using fallback counts (may be inaccurate)")

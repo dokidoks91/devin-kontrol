@@ -918,7 +918,8 @@ class PlannerGUI:
             
             checkbox_vars = []
             for i, sug in enumerate(suggestions):
-                var = tk.BooleanVar(value=True)
+                preselected = sug.get("preselected", True)
+                var = tk.BooleanVar(value=preselected)
                 checkbox_vars.append(var)
                 
                 cb_frame = ttk.Frame(scrollable_frame)
