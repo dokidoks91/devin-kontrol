@@ -863,6 +863,8 @@ class PlannerGUI:
             dialog = tk.Toplevel(self.root)
             dialog.title("Kriter Uyarısı / Bu ayarlarla plan oluşturulamıyor")
             dialog.geometry("950x700")
+            dialog.minsize(700, 500)
+            dialog.resizable(True, True)
             dialog.transient(self.root)
             dialog.grab_set()
             
@@ -891,8 +893,11 @@ class PlannerGUI:
                                        font=("Arial", 10))
             subtitle_label.pack(pady=(0, 10))
             
-            canvas = tk.Canvas(frame, borderwidth=0, highlightthickness=0)
-            scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+            content_container = ttk.Frame(frame)
+            content_container.pack(fill="both", expand=True)
+            
+            canvas = tk.Canvas(content_container, borderwidth=0, highlightthickness=0)
+            scrollbar = ttk.Scrollbar(content_container, orient="vertical", command=canvas.yview)
             scrollable_frame = ttk.Frame(canvas)
             
             scrollable_frame.bind(
@@ -900,8 +905,13 @@ class PlannerGUI:
                 lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
             )
             
-            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            window_id = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
             canvas.configure(yscrollcommand=scrollbar.set)
+            
+            def on_content_resize(event):
+                canvas.itemconfig(window_id, width=event.width)
+            
+            content_container.bind("<Configure>", on_content_resize)
             
             canvas.pack(side="left", fill="both", expand=True)
             scrollbar.pack(side="right", fill="y")
@@ -928,7 +938,7 @@ class PlannerGUI:
                 label.pack(side="left", fill="x", expand=True)
             
             button_frame = ttk.Frame(frame)
-            button_frame.pack(fill="x", pady=(10, 0))
+            button_frame.pack(fill="x", pady=(10, 10), side="bottom")
             
             def on_manual():
                 choice_result["choice"] = "manual"
@@ -952,15 +962,15 @@ class PlannerGUI:
             
             manual_button = ttk.Button(button_frame, text="Hayır, ayarları manuel düzelteceğim", 
                                        command=on_manual)
-            manual_button.pack(side="left", padx=5)
+            manual_button.pack(side="top", fill="x", padx=10, pady=(0, 6))
             
             retry_button = ttk.Button(button_frame, text="Seçili esnetmeleri uygula ve tekrar dene", 
                                       command=on_retry_strict)
-            retry_button.pack(side="left", padx=5, expand=True)
+            retry_button.pack(side="top", fill="x", padx=10, pady=(0, 6))
             
             best_button = ttk.Button(button_frame, text="Evet, seçili esnetmelerle best-effort ile devam et", 
                                      command=on_continue_best)
-            best_button.pack(side="right", padx=5)
+            best_button.pack(side="top", fill="x", padx=10, pady=(0, 6))
             
             dialog.wait_window()
         
