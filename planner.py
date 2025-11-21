@@ -125,6 +125,9 @@ def run_planner_with_best_effort(
             trial_posts = assign_first_products(calendar, first_candidates, cfg, decide=lambda msg: True)
             
             if trial_posts:
+                back_candidates = filter_back_products(unique_products, cfg)
+                trial_posts = assign_back_products(trial_posts, back_candidates, cfg)
+                
                 phase2_result = analyzer.analyze_and_suggest_relaxations(posts=trial_posts)
                 phase2_suggestions = phase2_result["suggestions"]
                 emit(f"   Trial assignment produced {len(trial_posts)} posts for analysis")
@@ -137,8 +140,11 @@ def run_planner_with_best_effort(
                 required_back = len(calendar) * required_back_per_post
                 placed_back = sum(len(p.get("back_products", [])) for p in trial_posts)
                 missing_back = max(0, required_back - placed_back)
+                
+                emit(f"   Trial counts: {placed_first}/{required_first} FIRST, {placed_back}/{required_back} BACK")
         except Exception as e:
             emit(f"   Trial assignment failed: {e}")
+            emit(f"   Using fallback counts (may be inaccurate)")
             missing_first = len(calendar)
             missing_back = len(calendar) * 9
         
@@ -154,6 +160,16 @@ def run_planner_with_best_effort(
                     seen_rules[rule_type] = sug
         
         suggestions = list(seen_rules.values())
+        
+        for sug in suggestions:
+            if sug["rule_type"] in ["FIRST_stock", "FIRST_size_stock"] and missing_first == 0:
+                sug["estimated_new_candidates"] = 0
+                original_note = sug.get("note", "")
+                if original_note:
+                    sug["note"] = f"{original_note} (düşük etki - FIRST slotları zaten dolu)"
+                else:
+                    sug["note"] = "(düşük etki - FIRST slotları zaten dolu)"
+        
         suggestions.sort(key=lambda s: s.get("estimated_new_candidates", 0), reverse=True)
         
         result = phase1_result
@@ -274,6 +290,9 @@ def run_planner_with_best_effort(
                     trial_posts_retry = assign_first_products(calendar, first_candidates_retry, relaxed_cfg, decide=lambda msg: True)
                     
                     if trial_posts_retry:
+                        back_candidates_retry = filter_back_products(unique_products, relaxed_cfg)
+                        trial_posts_retry = assign_back_products(trial_posts_retry, back_candidates_retry, relaxed_cfg)
+                        
                         phase2_retry = analyzer_retry.analyze_and_suggest_relaxations(posts=trial_posts_retry)
                         phase2_suggestions_retry = phase2_retry["suggestions"]
                         
@@ -286,6 +305,7 @@ def run_planner_with_best_effort(
                         missing_back = max(0, required_back_retry - placed_back_retry)
                 except Exception as e:
                     emit(f"   Trial assignment failed: {e}")
+                    emit(f"   Using fallback counts (may be inaccurate)")
                     phase2_suggestions_retry = []
                     missing_first = len(calendar)
                     missing_back = len(calendar) * 9

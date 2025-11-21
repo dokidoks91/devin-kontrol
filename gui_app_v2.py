@@ -862,7 +862,7 @@ class PlannerGUI:
         def show_dialog():
             dialog = tk.Toplevel(self.root)
             dialog.title("Kriter Uyarısı / Bu ayarlarla plan oluşturulamıyor")
-            dialog.geometry("950x650")
+            dialog.geometry("950x700")
             dialog.transient(self.root)
             dialog.grab_set()
             
