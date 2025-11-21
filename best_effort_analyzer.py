@@ -296,6 +296,15 @@ class BestEffortAnalyzer:
                     "estimated_new_candidates": len(violations),
                     "rule_type": "per_day_uruncinsi"
                 })
+            else:
+                suggestions.append({
+                    "rule_name": "Günlük Minimum Farklı Ürün Cinsi",
+                    "original_value": min_distinct_uruncinsi,
+                    "suggested_value": max(0, min_distinct_uruncinsi - 1),
+                    "estimated_new_candidates": 0,
+                    "rule_type": "per_day_uruncinsi",
+                    "note": "Şu anda ihlal yok"
+                })
         
         min_distinct_colors = self.cfg.get("min_distinct_color_per_day", 0)
         if min_distinct_colors > 0:
@@ -313,6 +322,15 @@ class BestEffortAnalyzer:
                     "suggested_value": min_found,
                     "estimated_new_candidates": len(violations),
                     "rule_type": "per_day_colors"
+                })
+            else:
+                suggestions.append({
+                    "rule_name": "Günlük Minimum Farklı Renk",
+                    "original_value": min_distinct_colors,
+                    "suggested_value": max(0, min_distinct_colors - 1),
+                    "estimated_new_candidates": 0,
+                    "rule_type": "per_day_colors",
+                    "note": "Şu anda ihlal yok"
                 })
         
         min_gap_days = self.cfg.get("same_kisakod_min_gap_days", 0)
@@ -345,6 +363,15 @@ class BestEffortAnalyzer:
                     "estimated_new_candidates": len(violations),
                     "rule_type": "kisakod_gap"
                 })
+            else:
+                suggestions.append({
+                    "rule_name": "Aynı KisaKod Minimum Ara Gün",
+                    "original_value": min_gap_days,
+                    "suggested_value": max(0, min_gap_days - 1),
+                    "estimated_new_candidates": 0,
+                    "rule_type": "kisakod_gap",
+                    "note": "Şu anda ihlal yok"
+                })
         
         return suggestions
     
@@ -376,6 +403,15 @@ class BestEffortAnalyzer:
                     "estimated_new_candidates": len(violations),
                     "rule_type": "black_limit"
                 })
+            else:
+                suggestions.append({
+                    "rule_name": "Günlük SİYAH FIRST Limiti",
+                    "original_value": max_black_per_day,
+                    "suggested_value": max_black_per_day + 1,
+                    "estimated_new_candidates": 0,
+                    "rule_type": "black_limit",
+                    "note": "Şu anda ihlal yok"
+                })
         
         max_kisakod_uses = self.cfg.get("max_first_uses_per_kisakod", 0)
         if max_kisakod_uses > 0:
@@ -390,6 +426,15 @@ class BestEffortAnalyzer:
                     "suggested_value": max_uses_found,
                     "estimated_new_candidates": len(violations),
                     "rule_type": "kisakod_uses"
+                })
+            else:
+                suggestions.append({
+                    "rule_name": "KisaKod FIRST Kullanım Limiti",
+                    "original_value": max_kisakod_uses,
+                    "suggested_value": max_kisakod_uses + 1,
+                    "estimated_new_candidates": 0,
+                    "rule_type": "kisakod_uses",
+                    "note": "Şu anda ihlal yok"
                 })
         
         return suggestions
