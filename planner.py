@@ -323,6 +323,7 @@ def run_planner_with_best_effort(
             max_retries = 3
             retry_count = 0
             previous_cfg = cfg.copy()
+            previous_suggestions_signature = None
             
             while retry_count < max_retries:
                 retry_count += 1
@@ -396,12 +397,14 @@ def run_planner_with_best_effort(
                 seen_rules_retry = {}
                 for sug in all_suggestions_retry:
                     rule_type = sug["rule_type"]
-                    if rule_type not in seen_rules_retry:
-                        seen_rules_retry[rule_type] = sug
+                    rule_name = sug.get("rule_name", rule_type)
+                    key = (rule_type, rule_name)
+                    if key not in seen_rules_retry:
+                        seen_rules_retry[key] = sug
                     else:
-                        existing = seen_rules_retry[rule_type]
+                        existing = seen_rules_retry[key]
                         if sug.get("estimated_new_candidates", 0) > existing.get("estimated_new_candidates", 0):
-                            seen_rules_retry[rule_type] = sug
+                            seen_rules_retry[key] = sug
                 
                 suggestions_retry = list(seen_rules_retry.values())
                 suggestions_retry.sort(key=lambda s: s.get("estimated_new_candidates", 0), reverse=True)
@@ -414,6 +417,35 @@ def run_planner_with_best_effort(
                         "error": "No more suggestions after retry",
                         "relaxations_applied": selected_suggestions
                     }
+                
+                current_suggestions_signature = tuple(sorted([
+                    (s["rule_type"], s.get("rule_name", s["rule_type"]), s.get("suggested_value", ""))
+                    for s in suggestions_retry
+                ]))
+                
+                if previous_suggestions_signature is not None and current_suggestions_signature == previous_suggestions_signature:
+                    emit("\n⚠️  Suggestions unchanged from previous iteration - stopping retry loop")
+                    emit(f"   Suggestions signature: {len(current_suggestions_signature)} rules")
+                    return {
+                        "success": False,
+                        "summary_text": "Öneriler değişmedi. Daha fazla esnetme mümkün değil. Lütfen ayarları manuel düzeltin.",
+                        "error": "Suggestions unchanged - no convergence",
+                        "relaxations_applied": selected_suggestions
+                    }
+                
+                total_estimated = sum(s.get("estimated_new_candidates", 0) for s in suggestions_retry)
+                emit(f"   Total estimated impact: {total_estimated} new candidates")
+                
+                if total_estimated == 0:
+                    emit("\n⚠️  All suggestions have zero estimated impact - stopping retry loop")
+                    return {
+                        "success": False,
+                        "summary_text": "Tüm önerilerin tahmini etkisi sıfır. Daha fazla esnetme fayda sağlamayacak. Lütfen ayarları manuel düzeltin.",
+                        "error": "Zero estimated impact - no benefit from relaxations",
+                        "relaxations_applied": selected_suggestions
+                    }
+                
+                previous_suggestions_signature = current_suggestions_signature
                 
                 emit(f"\n🔍 Dialog path: RETRY (attempt {retry_count})")
                 emit(f"   Suggestions count: {len(suggestions_retry)}")
