@@ -108,6 +108,17 @@ def run_planner_with_best_effort(
         unique_products = build_unique_products(raw_df)
         calendar = build_post_calendar(cfg)
         
+        preferred_products = cfg.get("preferred_first_products", [])
+        emit(f"\n📋 Preferred FIRST products loaded: {len(preferred_products)} items")
+        if preferred_products:
+            for i, pref in enumerate(preferred_products[:5], 1):
+                kisakodrenk = pref.get("kisakodrenk", "")
+                gun = pref.get("gun", "")
+                time = pref.get("time", "")
+                emit(f"   {i}. {kisakodrenk} - {gun} {time if time else '(herhangi bir saat)'}")
+            if len(preferred_products) > 5:
+                emit(f"   ... ve {len(preferred_products) - 5} daha")
+        
         # Analyze and compute relaxation suggestions (Two-phase approach)
         from best_effort_analyzer import BestEffortAnalyzer
         
@@ -142,6 +153,26 @@ def run_planner_with_best_effort(
                 missing_back = max(0, required_back - placed_back)
                 
                 emit(f"   Trial counts: {placed_first}/{required_first} FIRST, {placed_back}/{required_back} BACK")
+                
+                if preferred_products:
+                    emit(f"\n📋 Preferred FIRST products placement check:")
+                    all_stock_kisakodrenk = set(unique_products["kisakodrenk"].str.upper())
+                    first_pool_kisakodrenk = set(first_candidates["kisakodrenk"].str.upper())
+                    placed_kisakodrenk = set(p["first_product"]["kisakodrenk"].upper() for p in trial_posts if p.get("first_product"))
+                    
+                    for i, pref in enumerate(preferred_products, 1):
+                        kisakodrenk = pref.get("kisakodrenk", "").strip().upper()
+                        if not kisakodrenk:
+                            continue
+                        
+                        if kisakodrenk not in all_stock_kisakodrenk:
+                            emit(f"   ❌ {i}. {kisakodrenk}: Stok dosyasında bulunamadı")
+                        elif kisakodrenk not in first_pool_kisakodrenk:
+                            emit(f"   ⚠️  {i}. {kisakodrenk}: FIRST havuzuna giremedi (sezon/çekim/stok filtreleri)")
+                        elif kisakodrenk in placed_kisakodrenk:
+                            emit(f"   ✓ {i}. {kisakodrenk}: Plana atandı")
+                        else:
+                            emit(f"   ⚠️  {i}. {kisakodrenk}: Havuzda ama atama aşamasında yer bulamadı (günlük kısıtlar)")
         except Exception as e:
             emit(f"   Trial assignment failed: {e}")
             emit(f"   Using fallback counts (may be inaccurate)")
@@ -489,6 +520,17 @@ def run_planner(
         emit("Takvim oluşturuluyor...")
         calendar = build_post_calendar(cfg)
         
+        preferred_products = cfg.get("preferred_first_products", [])
+        emit(f"\n📋 Preferred FIRST products loaded: {len(preferred_products)} items")
+        if preferred_products:
+            for i, pref in enumerate(preferred_products[:5], 1):
+                kisakodrenk = pref.get("kisakodrenk", "")
+                gun = pref.get("gun", "")
+                time = pref.get("time", "")
+                emit(f"   {i}. {kisakodrenk} - {gun} {time if time else '(herhangi bir saat)'}")
+            if len(preferred_products) > 5:
+                emit(f"   ... ve {len(preferred_products) - 5} daha")
+        
         if config_override and "preferred_first_products" in config_override:
             from config import PlanConfig
             temp_config = PlanConfig(**config_override)
@@ -524,6 +566,27 @@ def run_planner(
                 "summary_text": "Hiç FIRST ürün atanamadı, plan oluşturulamadı.",
                 "error": "No FIRST products could be assigned"
             }
+        
+        if preferred_products:
+            emit(f"\n📋 Preferred FIRST products placement check:")
+            all_stock_kisakodrenk = set(unique_products["kisakodrenk"].str.upper())
+            first_pool_kisakodrenk = set(first_candidates["kisakodrenk"].str.upper())
+            placed_kisakodrenk = set(p["first_product"]["kisakodrenk"].upper() for p in posts if p.get("first_product"))
+            
+            for i, pref in enumerate(preferred_products, 1):
+                kisakodrenk = pref.get("kisakodrenk", "").strip().upper()
+                if not kisakodrenk:
+                    continue
+                
+                if kisakodrenk not in all_stock_kisakodrenk:
+                    emit(f"   ❌ {i}. {kisakodrenk}: Stok dosyasında bulunamadı")
+                elif kisakodrenk not in first_pool_kisakodrenk:
+                    emit(f"   ⚠️  {i}. {kisakodrenk}: FIRST havuzuna giremedi (sezon/çekim/stok filtreleri)")
+                elif kisakodrenk in placed_kisakodrenk:
+                    emit(f"   ✓ {i}. {kisakodrenk}: Plana atandı")
+                else:
+                    emit(f"   ⚠️  {i}. {kisakodrenk}: Havuzda ama atama aşamasında yer bulamadı (günlük kısıtlar)")
+            emit("")
         
         emit("Gelişmiş FIRST kuralları kontrol ediliyor...")
         if not check_advanced_first_constraints(posts, cfg, decide=decide):
