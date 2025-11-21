@@ -583,11 +583,20 @@ def assign_preferred_first_products(calendar, first_candidates: pd.DataFrame, cf
         return str(s).strip().title()
     
     def norm_time(t):
-        """Normalize time to HH:MM string format"""
+        """Normalize time to HH:MM string format with zero-padded hours"""
         if not t:
             return ""
         if isinstance(t, str):
-            return t.strip()
+            t_str = t.strip()
+            try:
+                parts = t_str.split(":")
+                if len(parts) >= 2:
+                    hour = int(parts[0])
+                    minute = int(parts[1])
+                    return f"{hour:02d}:{minute:02d}"
+                return t_str
+            except:
+                return t_str
         try:
             return t.strftime("%H:%M")
         except:
