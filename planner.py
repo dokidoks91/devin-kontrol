@@ -108,6 +108,10 @@ def run_planner_with_best_effort(
         unique_products = build_unique_products(raw_df)
         calendar = build_post_calendar(cfg)
         
+        emit(f"\n🔍 Prioritization config:")
+        emit(f"   prioritize_by_newness = {cfg.get('prioritize_by_newness', False)}")
+        emit(f"   prioritize_by_stock = {cfg.get('prioritize_by_stock', False)}")
+        
         preferred_products = cfg.get("preferred_first_products", [])
         emit(f"\n📋 Preferred FIRST products loaded: {len(preferred_products)} items")
         if preferred_products:
@@ -162,21 +166,21 @@ def run_planner_with_best_effort(
                     emit(f"   ⚠️  Advanced constraint check failed: {e}")
                     constraints_pass = False
                 
+                prioritization_is_blocking = False
+                if missing_first == 0 and missing_back == 0 and not constraints_pass and cfg.get("prioritize_by_newness") and not cfg.get("prioritize_by_stock"):
+                    emit(f"\n🔍 Detecting prioritization blocking: missing_first=0, missing_back=0, but advanced constraints failed")
+                    emit(f"   Current: prioritize_by_newness=True, prioritize_by_stock=False (recency only)")
+                    emit(f"   Suggestion: Enable stock as secondary priority to reduce constraint conflicts")
+                    prioritization_is_blocking = True
+                
                 if not constraints_pass:
                     emit(f"   ⚠️  Trial posts violate advanced constraints (max black per day, max KisaKod uses)")
                     emit(f"   Adjusting missing counts to reflect constraint violations")
                     if missing_first == 0:
-                        missing_first = 1  # Mark as non-zero to indicate constraint issues
+                        missing_first = 1
                     if missing_back == 0:
-                        missing_back = 1  # Mark as non-zero to indicate constraint issues
+                        missing_back = 1
                     emit(f"   Adjusted counts: missing_first={missing_first}, missing_back={missing_back}")
-                
-                prioritization_is_blocking = False
-                if missing_first == 0 and missing_back == 0 and cfg.get("prioritize_by_newness") and not cfg.get("prioritize_by_stock"):
-                    emit(f"\n🔍 Detecting prioritization blocking: missing_first=0, missing_back=0, but constraints may fail")
-                    emit(f"   Current: prioritize_by_newness=True, prioritize_by_stock=False (recency only)")
-                    emit(f"   Suggestion: Enable stock as secondary priority to reduce constraint conflicts")
-                    prioritization_is_blocking = True
                 
                 if preferred_products:
                     emit(f"\n📋 Preferred FIRST products placement check:")
@@ -287,11 +291,15 @@ def run_planner_with_best_effort(
         
         emit(f"\n{dialog_message}")
         
+        emit(f"\n🔍 Dialog path: INITIAL (first attempt)")
+        emit(f"   Suggestions count: {len(suggestions)}")
+        emit(f"   Raw counts: missing_first={missing_first}, missing_back={missing_back}")
+        
         if missing_first == 0:
             missing_first = 1
         if missing_back == 0:
             missing_back = 1
-        emit(f"📊 Dialog counts (clamped): missing_first={missing_first}, missing_back={missing_back}")
+        emit(f"   Final counts (clamped): missing_first={missing_first}, missing_back={missing_back}")
         
         if on_relaxation_choice:
             choice, selected_suggestions = on_relaxation_choice(suggestions, dialog_message, missing_first, missing_back)
@@ -407,11 +415,15 @@ def run_planner_with_best_effort(
                         "relaxations_applied": selected_suggestions
                     }
                 
+                emit(f"\n🔍 Dialog path: RETRY (attempt {retry_count})")
+                emit(f"   Suggestions count: {len(suggestions_retry)}")
+                emit(f"   Raw counts: missing_first={missing_first}, missing_back={missing_back}")
+                
                 if missing_first == 0:
                     missing_first = 1
                 if missing_back == 0:
                     missing_back = 1
-                emit(f"📊 Retry dialog counts (clamped): missing_first={missing_first}, missing_back={missing_back}")
+                emit(f"   Final counts (clamped): missing_first={missing_first}, missing_back={missing_back}")
                 
                 if on_relaxation_choice:
                     choice, selected_suggestions = on_relaxation_choice(suggestions_retry, "", missing_first, missing_back)

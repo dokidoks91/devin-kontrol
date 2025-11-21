@@ -861,7 +861,7 @@ class PlannerGUI:
         
         def show_dialog():
             dialog = tk.Toplevel(self.root)
-            dialog.title("Kriter Uyarısı / Bu ayarlarla plan oluşturulamıyor")
+            dialog.title("Kriter Uyarısı / Bu ayarlarla plan oluşturulamıyor (v2.1)")
             dialog.geometry("950x700")
             dialog.minsize(700, 500)
             dialog.resizable(True, True)
