@@ -287,6 +287,12 @@ def run_planner_with_best_effort(
         
         emit(f"\n{dialog_message}")
         
+        if missing_first == 0:
+            missing_first = 1
+        if missing_back == 0:
+            missing_back = 1
+        emit(f"📊 Dialog counts (clamped): missing_first={missing_first}, missing_back={missing_back}")
+        
         if on_relaxation_choice:
             choice, selected_suggestions = on_relaxation_choice(suggestions, dialog_message, missing_first, missing_back)
         else:
@@ -400,6 +406,12 @@ def run_planner_with_best_effort(
                         "error": "No more suggestions after retry",
                         "relaxations_applied": selected_suggestions
                     }
+                
+                if missing_first == 0:
+                    missing_first = 1
+                if missing_back == 0:
+                    missing_back = 1
+                emit(f"📊 Retry dialog counts (clamped): missing_first={missing_first}, missing_back={missing_back}")
                 
                 if on_relaxation_choice:
                     choice, selected_suggestions = on_relaxation_choice(suggestions_retry, "", missing_first, missing_back)
