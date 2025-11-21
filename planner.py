@@ -175,12 +175,8 @@ def run_planner_with_best_effort(
                 
                 if not constraints_pass:
                     emit(f"   ⚠️  Trial posts violate advanced constraints (max black per day, max KisaKod uses)")
-                    emit(f"   Adjusting missing counts to reflect constraint violations")
-                    if missing_first == 0:
-                        missing_first = 1
-                    if missing_back == 0:
-                        missing_back = 1
-                    emit(f"   Adjusted counts: missing_first={missing_first}, missing_back={missing_back}")
+                    emit(f"   Note: Counts show 0/0 but advanced constraints block placement")
+                    emit(f"   Actual counts: missing_first={missing_first}, missing_back={missing_back}")
             else:
                 emit(f"   Trial assignment returned empty - using realistic fallback counts")
                 missing_first = len(calendar)
@@ -298,13 +294,7 @@ def run_planner_with_best_effort(
         
         emit(f"\n🔍 Dialog path: INITIAL (first attempt)")
         emit(f"   Suggestions count: {len(suggestions)}")
-        emit(f"   Raw counts: missing_first={missing_first}, missing_back={missing_back}")
-        
-        if missing_first == 0:
-            missing_first = 1
-        if missing_back == 0:
-            missing_back = 1
-        emit(f"   Final counts (clamped): missing_first={missing_first}, missing_back={missing_back}")
+        emit(f"   Actual counts: missing_first={missing_first}, missing_back={missing_back}")
         
         if on_relaxation_choice:
             choice, selected_suggestions = on_relaxation_choice(suggestions, dialog_message, missing_first, missing_back)
@@ -427,13 +417,7 @@ def run_planner_with_best_effort(
                 
                 emit(f"\n🔍 Dialog path: RETRY (attempt {retry_count})")
                 emit(f"   Suggestions count: {len(suggestions_retry)}")
-                emit(f"   Raw counts: missing_first={missing_first}, missing_back={missing_back}")
-                
-                if missing_first == 0:
-                    missing_first = 1
-                if missing_back == 0:
-                    missing_back = 1
-                emit(f"   Final counts (clamped): missing_first={missing_first}, missing_back={missing_back}")
+                emit(f"   Actual counts: missing_first={missing_first}, missing_back={missing_back}")
                 
                 if on_relaxation_choice:
                     choice, selected_suggestions = on_relaxation_choice(suggestions_retry, "", missing_first, missing_back)
