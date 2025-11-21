@@ -118,7 +118,7 @@ class BestEffortAnalyzer:
             suggestions.extend(self._analyze_advanced_first_constraints(posts))
             suggestions.extend(self._analyze_global_stock_targets(posts))
         
-        suggestions = [s for s in suggestions if s.get("estimated_new_candidates", 0) > 0]
+        suggestions.sort(key=lambda s: s.get("estimated_new_candidates", 0), reverse=True)
         
         message = self._format_dialog_message(suggestions)
         
@@ -135,11 +135,14 @@ class BestEffortAnalyzer:
         suggestions = []
         min_stock = self.cfg.get("min_total_stock_front", 0)
         
-        if min_stock == 0:
+        if min_stock <= 1:
             return suggestions
         
         for step in [5, 10, 15, 20]:
-            new_threshold = max(0, min_stock - step)
+            new_threshold = max(1, min_stock - step)
+            
+            if new_threshold >= min_stock:
+                continue
             
             test_cfg = self.cfg.copy()
             test_cfg["min_total_stock_front"] = new_threshold
@@ -148,15 +151,14 @@ class BestEffortAnalyzer:
             
             additional = len(new_candidates) - len(current_candidates)
             
-            if additional > 0:
-                suggestions.append({
-                    "rule_name": "FIRST Minimum Toplam Stok",
-                    "original_value": min_stock,
-                    "suggested_value": new_threshold,
-                    "estimated_new_candidates": additional,
-                    "rule_type": "FIRST_stock"
-                })
-                break
+            suggestions.append({
+                "rule_name": "FIRST Minimum Toplam Stok",
+                "original_value": min_stock,
+                "suggested_value": new_threshold,
+                "estimated_new_candidates": additional,
+                "rule_type": "FIRST_stock"
+            })
+            break
         
         return suggestions
     
@@ -165,11 +167,14 @@ class BestEffortAnalyzer:
         suggestions = []
         min_stock = self.cfg.get("min_total_stock_back", 0)
         
-        if min_stock == 0:
+        if min_stock <= 1:
             return suggestions
         
         for step in [5, 10, 15, 20]:
-            new_threshold = max(0, min_stock - step)
+            new_threshold = max(1, min_stock - step)
+            
+            if new_threshold >= min_stock:
+                continue
             
             test_cfg = self.cfg.copy()
             test_cfg["min_total_stock_back"] = new_threshold
@@ -178,15 +183,14 @@ class BestEffortAnalyzer:
             
             additional = len(new_candidates) - len(current_candidates)
             
-            if additional > 0:
-                suggestions.append({
-                    "rule_name": "BACK Minimum Toplam Stok",
-                    "original_value": min_stock,
-                    "suggested_value": new_threshold,
-                    "estimated_new_candidates": additional,
-                    "rule_type": "BACK_stock"
-                })
-                break
+            suggestions.append({
+                "rule_name": "BACK Minimum Toplam Stok",
+                "original_value": min_stock,
+                "suggested_value": new_threshold,
+                "estimated_new_candidates": additional,
+                "rule_type": "BACK_stock"
+            })
+            break
         
         return suggestions
     
@@ -442,15 +446,18 @@ class BestEffortAnalyzer:
         lines = []
         lines.append("Bu ayarlarla plan oluşturulamıyor.")
         lines.append("")
-        lines.append("Aşağıdaki esnetme önerileri ile devam etmek ister misiniz?")
+        lines.append("Tüm esnetilebilir kurallar listelenmiştir. Hangilerini gevşetmek istediğinizi seçin.")
         lines.append("")
         
         for i, sug in enumerate(suggestions, 1):
             lines.append(f"{i}. {sug['rule_name']}")
             lines.append(f"   Mevcut: {sug['original_value']}")
             lines.append(f"   Önerilen: {sug['suggested_value']}")
-            if sug['estimated_new_candidates'] > 0:
-                lines.append(f"   Tahmini etki: +{sug['estimated_new_candidates']} aday")
+            impact = sug.get('estimated_new_candidates', 0)
+            if impact > 0:
+                lines.append(f"   Tahmini etki: +{impact} aday")
+            else:
+                lines.append(f"   Tahmini etki: +0 aday (düşük etki)")
             lines.append("")
         
         return "\n".join(lines)

@@ -852,17 +852,17 @@ class PlannerGUI:
         self.decision_event.wait()
         return self.decision_result
     
-    def on_relaxation_choice(self, suggestions, message):
-        """Handle relaxation choice dialog with two buttons - thread-safe version"""
+    def on_relaxation_choice(self, suggestions, message, missing_first, missing_back):
+        """Handle relaxation choice dialog with checkboxes and three buttons - thread-safe version"""
         import threading
         
-        choice_result = {"choice": "manual"}
+        choice_result = {"choice": "manual", "selected": []}
         choice_event = threading.Event()
         
         def show_dialog():
             dialog = tk.Toplevel(self.root)
-            dialog.title("Kriter Uyarısı")
-            dialog.geometry("900x600")
+            dialog.title("Kriter Uyarısı / Bu ayarlarla plan oluşturulamıyor")
+            dialog.geometry("950x650")
             dialog.transient(self.root)
             dialog.grab_set()
             
@@ -871,48 +871,88 @@ class PlannerGUI:
             
             title_label = ttk.Label(frame, text="Bu ayarlarla plan oluşturulamıyor.", 
                                     font=("Arial", 12, "bold"))
-            title_label.pack(pady=(0, 10))
+            title_label.pack(pady=(0, 5))
+            
+            missing_label = ttk.Label(frame, 
+                                      text=f"Eksik FIRST sayısı: {missing_first} post, Eksik BACK sayısı: {missing_back} ürün.",
+                                      font=("Arial", 10, "italic"),
+                                      foreground="red")
+            missing_label.pack(pady=(0, 5))
             
             subtitle_label = ttk.Label(frame, text="Tüm esnetilebilir kurallar listelenmiştir. Hangilerini gevşetmek istediğinizi seçin.",
                                        font=("Arial", 10))
             subtitle_label.pack(pady=(0, 10))
             
-            text_frame = ttk.Frame(frame)
-            text_frame.pack(fill="both", expand=True, pady=(0, 10))
+            canvas = tk.Canvas(frame, borderwidth=0, highlightthickness=0)
+            scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+            scrollable_frame = ttk.Frame(canvas)
             
-            text_widget = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD, height=15)
-            text_widget.pack(fill="both", expand=True)
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
             
-            for i, sug in enumerate(suggestions, 1):
-                text_widget.insert(tk.END, f"{i}. {sug['rule_name']}\n")
-                text_widget.insert(tk.END, f"   Mevcut: {sug['original_value']}\n")
-                text_widget.insert(tk.END, f"   Önerilen: {sug['suggested_value']}\n")
-                if sug.get('estimated_new_candidates', 0) > 0:
-                    text_widget.insert(tk.END, f"   Tahmini etki: +{sug['estimated_new_candidates']} aday\n")
-                text_widget.insert(tk.END, "\n")
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
             
-            text_widget.config(state="disabled")
+            canvas.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+            
+            checkbox_vars = []
+            for i, sug in enumerate(suggestions):
+                var = tk.BooleanVar(value=True)
+                checkbox_vars.append(var)
+                
+                cb_frame = ttk.Frame(scrollable_frame)
+                cb_frame.pack(fill="x", pady=5, padx=5)
+                
+                cb = ttk.Checkbutton(cb_frame, variable=var)
+                cb.pack(side="left", padx=(0, 5))
+                
+                impact = sug.get('estimated_new_candidates', 0)
+                if impact > 0:
+                    impact_text = f"Tahmini etki: +{impact} aday"
+                else:
+                    impact_text = "Tahmini etki: +0 aday (düşük etki)"
+                
+                label_text = f"{sug['rule_name']}: {sug['original_value']} → {sug['suggested_value']}, {impact_text}"
+                label = ttk.Label(cb_frame, text=label_text, wraplength=800)
+                label.pack(side="left", fill="x", expand=True)
             
             button_frame = ttk.Frame(frame)
             button_frame.pack(fill="x", pady=(10, 0))
             
             def on_manual():
                 choice_result["choice"] = "manual"
+                choice_result["selected"] = []
                 dialog.destroy()
-                choice_event.set()  # Signal worker thread
+                choice_event.set()
             
-            def on_apply():
-                choice_result["choice"] = "apply"
+            def on_retry_strict():
+                selected = [sug for i, sug in enumerate(suggestions) if checkbox_vars[i].get()]
+                choice_result["choice"] = "retry_strict"
+                choice_result["selected"] = selected
                 dialog.destroy()
-                choice_event.set()  # Signal worker thread
+                choice_event.set()
             
-            manual_button = ttk.Button(button_frame, text="Hayır, ayarları düzelteceğim", 
+            def on_continue_best():
+                selected = [sug for i, sug in enumerate(suggestions) if checkbox_vars[i].get()]
+                choice_result["choice"] = "continue_best"
+                choice_result["selected"] = selected
+                dialog.destroy()
+                choice_event.set()
+            
+            manual_button = ttk.Button(button_frame, text="Hayır, ayarları manuel düzelteceğim", 
                                        command=on_manual)
             manual_button.pack(side="left", padx=5)
             
-            apply_button = ttk.Button(button_frame, text="Evet, best-effort ile devam et", 
-                                      command=on_apply)
-            apply_button.pack(side="right", padx=5)
+            retry_button = ttk.Button(button_frame, text="Seçili esnetmeleri uygula ve tekrar dene", 
+                                      command=on_retry_strict)
+            retry_button.pack(side="left", padx=5, expand=True)
+            
+            best_button = ttk.Button(button_frame, text="Evet, seçili esnetmelerle best-effort ile devam et", 
+                                     command=on_continue_best)
+            best_button.pack(side="right", padx=5)
             
             dialog.wait_window()
         
@@ -920,9 +960,9 @@ class PlannerGUI:
         
         if not choice_event.wait(timeout=300):
             print("WARNING: Relaxation choice dialog timed out after 5 minutes")
-            return "manual"
+            return "manual", []
         
-        return choice_result["choice"]
+        return choice_result["choice"], choice_result["selected"]
     
     def collect_config(self) -> PlanConfig:
         """Collect all GUI values into a PlanConfig object"""

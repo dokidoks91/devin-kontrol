@@ -118,6 +118,8 @@ def run_planner_with_best_effort(
         
         emit("\n📊 Phase 2: Running trial assignment to analyze assignment-based constraints...")
         phase2_suggestions = []
+        missing_first = 0
+        missing_back = 0
         try:
             first_candidates = filter_first_products(unique_products, cfg)
             trial_posts = assign_first_products(calendar, first_candidates, cfg, decide=lambda msg: True)
@@ -126,8 +128,19 @@ def run_planner_with_best_effort(
                 phase2_result = analyzer.analyze_and_suggest_relaxations(posts=trial_posts)
                 phase2_suggestions = phase2_result["suggestions"]
                 emit(f"   Trial assignment produced {len(trial_posts)} posts for analysis")
+                
+                required_first = len(calendar)
+                placed_first = sum(1 for p in trial_posts if p.get("first_product"))
+                missing_first = max(0, required_first - placed_first)
+                
+                required_back_per_post = 9
+                required_back = len(calendar) * required_back_per_post
+                placed_back = sum(len(p.get("back_products", [])) for p in trial_posts)
+                missing_back = max(0, required_back - placed_back)
         except Exception as e:
             emit(f"   Trial assignment failed: {e}")
+            missing_first = len(calendar)
+            missing_back = len(calendar) * 9
         
         all_suggestions = phase1_result["suggestions"] + phase2_suggestions
         seen_rules = {}
@@ -191,13 +204,14 @@ def run_planner_with_best_effort(
         emit(f"\n{dialog_message}")
         
         if on_relaxation_choice:
-            choice = on_relaxation_choice(suggestions, dialog_message)
+            choice, selected_suggestions = on_relaxation_choice(suggestions, dialog_message, missing_first, missing_back)
         else:
             print("\nSeçenekler:")
             print("1. Ayarları manuel düzelteceğim (abort)")
             print("2. Best-effort ile devam et (apply)")
             user_input = input("Seçiminiz (1/2): ").strip()
             choice = "apply" if user_input == "2" else "manual"
+            selected_suggestions = suggestions
         
         if choice == "manual" or choice == "abort":
             emit("\n⏸️  Kullanıcı ayarları manuel düzeltmeyi seçti - plan iptal edildi")
@@ -208,11 +222,128 @@ def run_planner_with_best_effort(
                 "relaxations_applied": []
             }
         
+        if choice == "retry_strict":
+            emit("\n" + "=" * 70)
+            emit("Retry: Applying selected relaxations and retrying strict mode")
+            emit("=" * 70)
+            
+            max_retries = 3
+            retry_count = 0
+            previous_cfg = cfg.copy()
+            
+            while retry_count < max_retries:
+                retry_count += 1
+                emit(f"\n🔄 Retry attempt {retry_count}/{max_retries}")
+                
+                relaxed_cfg = analyzer.apply_relaxations(selected_suggestions)
+                
+                if relaxed_cfg == previous_cfg:
+                    emit("\n⚠️  Selected relaxations produced no config changes - stopping retry loop")
+                    return {
+                        "success": False,
+                        "summary_text": "Seçili esnetmeler yapılandırmayı değiştirmedi. Lütfen farklı kurallar seçin veya ayarları manuel düzeltin.",
+                        "error": "No config changes from selected relaxations",
+                        "relaxations_applied": selected_suggestions
+                    }
+                
+                previous_cfg = relaxed_cfg.copy()
+                
+                result = run_planner(
+                    excel_path=excel_path,
+                    start_day=start_day,
+                    num_days=num_days,
+                    mode_front=mode_front,
+                    mode_back=mode_back,
+                    on_progress=on_progress,
+                    on_decision=None,
+                    config_override=relaxed_cfg,
+                )
+                
+                if result["success"]:
+                    emit(f"\n✓ Retry succeeded after {retry_count} attempt(s)")
+                    result["relaxations_applied"] = selected_suggestions
+                    return result
+                
+                emit(f"\n⚠️  Retry attempt {retry_count} failed - analyzing again...")
+                
+                analyzer_retry = BestEffortAnalyzer(calendar, unique_products, relaxed_cfg, raw_df)
+                phase1_retry = analyzer_retry.analyze_and_suggest_relaxations(posts=None)
+                
+                try:
+                    first_candidates_retry = filter_first_products(unique_products, relaxed_cfg)
+                    trial_posts_retry = assign_first_products(calendar, first_candidates_retry, relaxed_cfg, decide=lambda msg: True)
+                    
+                    if trial_posts_retry:
+                        phase2_retry = analyzer_retry.analyze_and_suggest_relaxations(posts=trial_posts_retry)
+                        phase2_suggestions_retry = phase2_retry["suggestions"]
+                        
+                        required_first_retry = len(calendar)
+                        placed_first_retry = sum(1 for p in trial_posts_retry if p.get("first_product"))
+                        missing_first = max(0, required_first_retry - placed_first_retry)
+                        
+                        required_back_retry = len(calendar) * 9
+                        placed_back_retry = sum(len(p.get("back_products", [])) for p in trial_posts_retry)
+                        missing_back = max(0, required_back_retry - placed_back_retry)
+                except Exception as e:
+                    emit(f"   Trial assignment failed: {e}")
+                    phase2_suggestions_retry = []
+                    missing_first = len(calendar)
+                    missing_back = len(calendar) * 9
+                
+                all_suggestions_retry = phase1_retry["suggestions"] + phase2_suggestions_retry
+                seen_rules_retry = {}
+                for sug in all_suggestions_retry:
+                    rule_type = sug["rule_type"]
+                    if rule_type not in seen_rules_retry:
+                        seen_rules_retry[rule_type] = sug
+                    else:
+                        existing = seen_rules_retry[rule_type]
+                        if sug.get("estimated_new_candidates", 0) > existing.get("estimated_new_candidates", 0):
+                            seen_rules_retry[rule_type] = sug
+                
+                suggestions_retry = list(seen_rules_retry.values())
+                suggestions_retry.sort(key=lambda s: s.get("estimated_new_candidates", 0), reverse=True)
+                
+                if not suggestions_retry:
+                    emit("\n❌ No more relaxation suggestions available")
+                    return {
+                        "success": False,
+                        "summary_text": "Esnetmeler uygulandı ancak plan hala oluşturulamadı ve daha fazla öneri yok.",
+                        "error": "No more suggestions after retry",
+                        "relaxations_applied": selected_suggestions
+                    }
+                
+                if on_relaxation_choice:
+                    choice, selected_suggestions = on_relaxation_choice(suggestions_retry, "", missing_first, missing_back)
+                    
+                    if choice == "manual" or choice == "abort":
+                        emit("\n⏸️  Kullanıcı ayarları manuel düzeltmeyi seçti")
+                        return {
+                            "success": False,
+                            "summary_text": "Plan iptal edildi - lütfen ayarları düzeltin ve tekrar deneyin.",
+                            "error": "User chose to adjust settings manually",
+                            "relaxations_applied": selected_suggestions
+                        }
+                    
+                    if choice == "continue_best":
+                        break
+                else:
+                    break
+            
+            if retry_count >= max_retries:
+                emit(f"\n❌ Maximum retries ({max_retries}) reached without success")
+                return {
+                    "success": False,
+                    "summary_text": f"Maksimum deneme sayısına ({max_retries}) ulaşıldı. Plan oluşturulamadı.",
+                    "error": "Max retries reached",
+                    "relaxations_applied": selected_suggestions
+                }
+        
         emit("\n" + "=" * 70)
-        emit("PASS 2: Best-effort mode - applying relaxations")
+        emit("PASS 2: Best-effort mode - applying selected relaxations")
         emit("=" * 70)
         
-        relaxed_cfg = analyzer.apply_relaxations(suggestions)
+        relaxed_cfg = analyzer.apply_relaxations(selected_suggestions)
         
         result = run_planner(
             excel_path=excel_path,
@@ -221,16 +352,16 @@ def run_planner_with_best_effort(
             mode_front=mode_front,
             mode_back=mode_back,
             on_progress=on_progress,
-            on_decision=lambda msg: True,  # Auto-accept in best-effort mode
+            on_decision=lambda msg: True,
             config_override=relaxed_cfg,
         )
         
         if result["success"]:
             emit("\n✓ Best-effort mode succeeded - plan generated with relaxations")
-            result["relaxations_applied"] = suggestions
+            result["relaxations_applied"] = selected_suggestions
         else:
             emit("\n❌ Best-effort mode also failed - cannot generate plan")
-            result["relaxations_applied"] = suggestions
+            result["relaxations_applied"] = selected_suggestions
         
         return result
         
