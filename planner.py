@@ -135,6 +135,7 @@ def run_planner_with_best_effort(
         phase2_suggestions = []
         missing_first = 0
         missing_back = 0
+        prioritization_is_blocking = False
         try:
             first_candidates = filter_first_products(unique_products, cfg)
             trial_posts = assign_first_products(calendar, first_candidates, cfg, decide=lambda msg: True)
@@ -157,10 +158,6 @@ def run_planner_with_best_effort(
                 missing_back = max(0, required_back - placed_back)
                 
                 emit(f"   Trial counts: {placed_first}/{required_first} FIRST, {placed_back}/{required_back} BACK")
-            else:
-                emit(f"   Trial assignment returned empty - using realistic fallback counts")
-                missing_first = len(calendar)
-                missing_back = len(calendar) * 9
                 
                 from instagram_auto_post import check_advanced_first_constraints
                 constraints_pass = True
@@ -170,7 +167,6 @@ def run_planner_with_best_effort(
                     emit(f"   ⚠️  Advanced constraint check failed: {e}")
                     constraints_pass = False
                 
-                prioritization_is_blocking = False
                 if missing_first == 0 and missing_back == 0 and not constraints_pass and cfg.get("prioritize_by_newness") and not cfg.get("prioritize_by_stock"):
                     emit(f"\n🔍 Detecting prioritization blocking: missing_first=0, missing_back=0, but advanced constraints failed")
                     emit(f"   Current: prioritize_by_newness=True, prioritize_by_stock=False (recency only)")
@@ -185,6 +181,10 @@ def run_planner_with_best_effort(
                     if missing_back == 0:
                         missing_back = 1
                     emit(f"   Adjusted counts: missing_first={missing_first}, missing_back={missing_back}")
+            else:
+                emit(f"   Trial assignment returned empty - using realistic fallback counts")
+                missing_first = len(calendar)
+                missing_back = len(calendar) * 9
                 
                 if preferred_products:
                     emit(f"\n📋 Preferred FIRST products placement check:")
