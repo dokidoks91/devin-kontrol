@@ -541,5 +541,7 @@ class BestEffortAnalyzer:
                 new_cfg["global_min_first_stock_sum"] = sug["suggested_value"]
             elif rule_type == "global_total_stock":
                 new_cfg["global_min_total_stock_sum"] = sug["suggested_value"]
+            elif rule_type == "PRIORITY_mode":
+                new_cfg["prioritize_by_stock"] = True
         
         return new_cfg

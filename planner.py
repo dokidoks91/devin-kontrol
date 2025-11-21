@@ -154,6 +154,13 @@ def run_planner_with_best_effort(
                 
                 emit(f"   Trial counts: {placed_first}/{required_first} FIRST, {placed_back}/{required_back} BACK")
                 
+                prioritization_is_blocking = False
+                if missing_first == 0 and missing_back == 0 and cfg.get("prioritize_by_newness") and not cfg.get("prioritize_by_stock"):
+                    emit(f"\n🔍 Detecting prioritization blocking: missing_first=0, missing_back=0, but constraints may fail")
+                    emit(f"   Current: prioritize_by_newness=True, prioritize_by_stock=False (recency only)")
+                    emit(f"   Suggestion: Enable stock as secondary priority to reduce constraint conflicts")
+                    prioritization_is_blocking = True
+                
                 if preferred_products:
                     emit(f"\n📋 Preferred FIRST products placement check:")
                     all_stock_kisakodrenk = set(unique_products["kisakodrenk"].str.upper())
@@ -191,6 +198,17 @@ def run_planner_with_best_effort(
                     seen_rules[rule_type] = sug
         
         suggestions = list(seen_rules.values())
+        
+        if prioritization_is_blocking:
+            priority_suggestion = {
+                "rule_type": "PRIORITY_mode",
+                "original_value": "Yalnızca yeniliğe göre",
+                "suggested_value": "Yenilik + stok (ikincil öncelik)",
+                "estimated_new_candidates": 0,
+                "note": "Atama kısıtlarıyla çakışmaları azaltır (yüksek etki)"
+            }
+            suggestions.append(priority_suggestion)
+            emit(f"\n⚠️  Added PRIORITY_mode suggestion: Enable stock as secondary priority")
         
         for sug in suggestions:
             if sug["rule_type"] in ["FIRST_stock", "FIRST_size_stock"] and missing_first == 0:
