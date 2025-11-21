@@ -478,13 +478,55 @@ class BestEffortAnalyzer:
             rule_type = sug["rule_type"]
             
             if rule_type == "FIRST_stock":
-                new_cfg["min_total_stock_front"] = sug["suggested_value"]
+                new_cfg["min_total_stock_front"] = max(1, sug["suggested_value"])
             elif rule_type == "BACK_stock":
-                new_cfg["min_total_stock_back"] = sug["suggested_value"]
+                new_cfg["min_total_stock_back"] = max(1, sug["suggested_value"])
             elif rule_type == "FIRST_size_stock":
-                pass  # Complex logic, skip for now
+                rules = new_cfg.get("front_size_stock_rules", [])
+                original_str = sug["original_value"]
+                suggested_str = sug["suggested_value"]
+                
+                import re
+                orig_match = re.search(r'Y=(\d+), Z=(\d+)', original_str)
+                sugg_match = re.search(r'Y=(\d+), Z=(\d+)', suggested_str)
+                
+                if orig_match and sugg_match and "Beden/Stok Kuralı" in sug["rule_name"]:
+                    size_match = re.search(r'\((\d+) beden\)', sug["rule_name"])
+                    if size_match:
+                        size_count = int(size_match.group(1))
+                        orig_y, orig_z = int(orig_match.group(1)), int(orig_match.group(2))
+                        sugg_y, sugg_z = int(sugg_match.group(1)), int(sugg_match.group(2))
+                        
+                        new_rules = []
+                        for rule in rules:
+                            if len(rule) == 3 and rule[0] == size_count and rule[1] == orig_y and rule[2] == orig_z:
+                                new_rules.append((size_count, sugg_y, sugg_z))
+                            else:
+                                new_rules.append(rule)
+                        new_cfg["front_size_stock_rules"] = new_rules
             elif rule_type == "BACK_size_stock":
-                pass  # Complex logic, skip for now
+                rules = new_cfg.get("back_size_stock_rules", [])
+                original_str = sug["original_value"]
+                suggested_str = sug["suggested_value"]
+                
+                import re
+                orig_match = re.search(r'Y=(\d+), Z=(\d+)', original_str)
+                sugg_match = re.search(r'Y=(\d+), Z=(\d+)', suggested_str)
+                
+                if orig_match and sugg_match and "Beden/Stok Kuralı" in sug["rule_name"]:
+                    size_match = re.search(r'\((\d+) beden\)', sug["rule_name"])
+                    if size_match:
+                        size_count = int(size_match.group(1))
+                        orig_y, orig_z = int(orig_match.group(1)), int(orig_match.group(2))
+                        sugg_y, sugg_z = int(sugg_match.group(1)), int(sugg_match.group(2))
+                        
+                        new_rules = []
+                        for rule in rules:
+                            if len(rule) == 3 and rule[0] == size_count and rule[1] == orig_y and rule[2] == orig_z:
+                                new_rules.append((size_count, sugg_y, sugg_z))
+                            else:
+                                new_rules.append(rule)
+                        new_cfg["back_size_stock_rules"] = new_rules
             elif rule_type == "per_day_uruncinsi":
                 new_cfg["min_distinct_uruncinsi_per_day"] = sug["suggested_value"]
             elif rule_type == "per_day_colors":

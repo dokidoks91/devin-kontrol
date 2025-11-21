@@ -866,6 +866,14 @@ class PlannerGUI:
             dialog.transient(self.root)
             dialog.grab_set()
             
+            def on_window_close():
+                choice_result["choice"] = "manual"
+                choice_result["selected"] = []
+                dialog.destroy()
+                choice_event.set()
+            
+            dialog.protocol("WM_DELETE_WINDOW", on_window_close)
+            
             frame = ttk.Frame(dialog, padding="10")
             frame.pack(fill="both", expand=True)
             
